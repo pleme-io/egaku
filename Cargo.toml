@@ -1,0 +1,28 @@
+[package]
+name = "egaku"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89.0"
+description = "Egaku (描く) — GPU widget toolkit: text inputs, lists, tabs, modals, focus, keybindings"
+homepage = "https://github.com/pleme-io/egaku"
+repository = "https://github.com/pleme-io/egaku"
+readme = "README.md"
+license = "MIT"
+categories = ["gui"]
+keywords = ["widgets", "gui", "gpu", "wgpu", "toolkit"]
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+tracing = "0.1"
+thiserror = "2"
+unicode-segmentation = "1.12"
+unicode-width = "0.2"
+
+[dev-dependencies]
+serde_json = "1"
+tempfile = "3"
