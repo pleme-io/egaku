@@ -6,6 +6,7 @@ rust-version = "1.89.0"
 description = "Egaku (描く) — GPU widget toolkit: text inputs, lists, tabs, modals, focus, keybindings"
 homepage = "https://github.com/pleme-io/egaku"
 repository = "https://github.com/pleme-io/egaku"
+documentation = "https://docs.rs/egaku"
 readme = "README.md"
 license = "MIT"
 categories = ["gui"]
