@@ -2,7 +2,7 @@
   description = "Egaku (描く) — GPU widget toolkit: text inputs, lists, tabs, modals, focus, keybindings";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-25.11";
     substrate = {
       url = "github:pleme-io/substrate";
       inputs.nixpkgs.follows = "nixpkgs";
