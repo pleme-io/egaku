@@ -19,7 +19,7 @@ Reusable UI widget library for all pleme-io graphical applications. Sits between
 | Module | Type | Purpose |
 |--------|------|---------|
 | `input.rs` | `TextInput` | Text editing with cursor, selection, backspace, delete |
-| `scroll.rs` | `ScrollView` | Virtualized scroll with visible range calculation |
+| `scroll.rs` | `ScrollView`, `ScrollKinetics` | Virtualized scroll + fleet-shared momentum/inertia physics (unit-agnostic: lines/pixels/ticks) |
 | `list.rs` | `ListView` | Scrollable item list with keyboard selection |
 | `tabs.rs` | `TabBar` | Tab container with wrap-around navigation |
 | `split.rs` | `SplitPane` | Resizable H/V splits with min/max ratio |
