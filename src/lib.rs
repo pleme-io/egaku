@@ -10,6 +10,8 @@
 //! - `TabBar`: tab container with wrap-around keyboard navigation
 //! - `SplitPane`: resizable horizontal/vertical splits
 //! - `Modal`: overlay dialog visibility state
+//! - `FuzzyPicker`: generic modal fuzzy-picker (typed FSM) — session/tab
+//!   switcher, command palette, fuzzy chooser; render-backend-agnostic
 //! - `FocusManager`: tab-order focus traversal across widgets
 //! - `KeyMap`: configurable keybinding system (generic over action type)
 //! - `Rect` / `Padding`: layout geometry primitives
@@ -21,6 +23,7 @@ pub mod keymap;
 pub mod layout;
 pub mod list;
 pub mod modal;
+pub mod picker;
 pub mod scroll;
 pub mod split;
 pub mod tabs;
@@ -32,6 +35,9 @@ pub use keymap::{KeyCombo, KeyMap};
 pub use layout::{Padding, Rect};
 pub use list::ListView;
 pub use modal::Modal;
+pub use picker::{
+    FuzzyPicker, PickerEffect, PickerEvent, PickerItem, PickerState, PickerStep, PickerView,
+};
 pub use scroll::{ScrollKinetics, ScrollKineticsConfig, ScrollView};
 pub use split::{Orientation, SplitPane};
 pub use tabs::TabBar;
