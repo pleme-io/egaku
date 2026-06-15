@@ -4,6 +4,8 @@
 //! without requiring a GPU or windowing system:
 //! - `TextInput`: single-line text input with cursor, selection, grapheme-aware editing
 //! - `ScrollView`: scroll offset tracking with clamping and fraction
+//! - `ScrollKinetics`: fleet-shared momentum/inertia scroll physics
+//!   (unit-agnostic: lines, pixels, or scroll-ticks) + `ScrollKineticsConfig`
 //! - `ListView`: scrollable item list with keyboard selection
 //! - `TabBar`: tab container with wrap-around keyboard navigation
 //! - `SplitPane`: resizable horizontal/vertical splits
@@ -30,7 +32,7 @@ pub use keymap::{KeyCombo, KeyMap};
 pub use layout::{Padding, Rect};
 pub use list::ListView;
 pub use modal::Modal;
-pub use scroll::ScrollView;
+pub use scroll::{ScrollKinetics, ScrollKineticsConfig, ScrollView};
 pub use split::{Orientation, SplitPane};
 pub use tabs::TabBar;
 pub use theme::Theme;
