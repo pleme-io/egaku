@@ -98,7 +98,17 @@ pub fn rgba_to_hex(rgba: &[f32; 4]) -> String {
     format!("#{r:02X}{g:02X}{b:02X}")
 }
 
-// Nord base16 constants
+// Nord base16 constants.
+//
+// These mirror the fleet-canonical Nord palette owned by ishou
+// (`irodori::NORD` → `ishou_tokens::ColorPalette::pleme()`, rendered as
+// base16 by `ishou-render`'s stylix/nix targets). egaku is the fleet's
+// shared `Theme` source but is deliberately dependency-minimal (no
+// `ishou_tokens`/`garasu`/`wgpu` at runtime), so the 16 values are
+// inlined here rather than pulled in. The `default_matches_fleet_nord`
+// test below pins them to ishou's canonical hex so any drift in either
+// the constants or the alias wiring fails at test time — the
+// convergence guard for this fork.
 const NORD00: [f32; 4] = [0.180, 0.204, 0.251, 1.0]; // #2E3440 polar night
 const NORD01: [f32; 4] = [0.231, 0.259, 0.322, 1.0]; // #3B4252
 const NORD02: [f32; 4] = [0.263, 0.298, 0.369, 1.0]; // #434C5E
@@ -264,10 +274,8 @@ mod tests {
     #[test]
     fn from_base16_nord() {
         let colors = [
-            "#2E3440", "#3B4252", "#434C5E", "#4C566A",
-            "#D8DEE9", "#E5E9F0", "#ECEFF4", "#ECEFF4",
-            "#BF616A", "#D08770", "#EBCB8B", "#A3BE8C",
-            "#8FBCBB", "#88C0D0", "#81A1C1", "#5E81AC",
+            "#2E3440", "#3B4252", "#434C5E", "#4C566A", "#D8DEE9", "#E5E9F0", "#ECEFF4", "#ECEFF4",
+            "#BF616A", "#D08770", "#EBCB8B", "#A3BE8C", "#8FBCBB", "#88C0D0", "#81A1C1", "#5E81AC",
         ];
         let theme = Theme::from_base16(&colors).unwrap();
         // Semantic aliases should be derived
@@ -280,12 +288,48 @@ mod tests {
     #[test]
     fn from_base16_invalid() {
         let colors = [
-            "#2E3440", "#3B4252", "#434C5E", "#4C566A",
-            "#D8DEE9", "#E5E9F0", "#ECEFF4", "#ECEFF4",
-            "#BF616A", "#D08770", "#EBCB8B", "#A3BE8C",
-            "#8FBCBB", "#88C0D0", "#81A1C1", "invalid",
+            "#2E3440", "#3B4252", "#434C5E", "#4C566A", "#D8DEE9", "#E5E9F0", "#ECEFF4", "#ECEFF4",
+            "#BF616A", "#D08770", "#EBCB8B", "#A3BE8C", "#8FBCBB", "#88C0D0", "#81A1C1", "invalid",
         ];
         assert!(Theme::from_base16(&colors).is_none());
+    }
+
+    #[test]
+    fn default_matches_fleet_nord() {
+        // Convergence guard: egaku's default `Theme` is a value-exact
+        // mirror of ishou's canonical Nord palette (`irodori::NORD`,
+        // rendered as base16 by ishou-render). Pin every base16 slot to
+        // the canonical hex so a typo'd constant OR a mis-wired alias in
+        // `Theme::default()` fails here instead of drifting silently
+        // across the ~11 GPU apps that paint with this Theme.
+        let t = Theme::default();
+        let expected_base16 = [
+            "#2E3440", "#3B4252", "#434C5E", "#4C566A", // polar night
+            "#D8DEE9", "#E5E9F0", "#ECEFF4", "#ECEFF4", // snow storm
+            "#BF616A", "#D08770", "#EBCB8B", "#A3BE8C", // aurora
+            "#8FBCBB", "#88C0D0", "#81A1C1", "#5E81AC", // frost
+        ];
+        let actual_base16 = [
+            t.base00, t.base01, t.base02, t.base03, t.base04, t.base05, t.base06, t.base07,
+            t.base08, t.base09, t.base0a, t.base0b, t.base0c, t.base0d, t.base0e, t.base0f,
+        ];
+        for (i, (slot, want)) in actual_base16.iter().zip(expected_base16).enumerate() {
+            assert_eq!(
+                rgba_to_hex(slot),
+                want,
+                "base16 slot {i:02x} drifted from fleet Nord"
+            );
+        }
+        // Semantic aliases must stay derived from the same Nord slots.
+        assert_eq!(rgba_to_hex(&t.background), "#2E3440"); // base00
+        assert_eq!(rgba_to_hex(&t.foreground), "#E5E9F0"); // base05
+        assert_eq!(rgba_to_hex(&t.accent), "#88C0D0"); // base0d
+        assert_eq!(rgba_to_hex(&t.error), "#BF616A"); // base08
+        assert_eq!(rgba_to_hex(&t.warning), "#EBCB8B"); // base0a
+        assert_eq!(rgba_to_hex(&t.success), "#A3BE8C"); // base0b
+        assert_eq!(rgba_to_hex(&t.selection), "#434C5E"); // base02
+        assert_eq!(rgba_to_hex(&t.muted), "#4C566A"); // base03
+        assert_eq!(rgba_to_hex(&t.border), "#3B4252"); // base01
     }
 
     #[test]
@@ -293,10 +337,8 @@ mod tests {
         let t = Theme::default();
         // All 16 base slots should have alpha = 1.0
         for slot in [
-            t.base00, t.base01, t.base02, t.base03,
-            t.base04, t.base05, t.base06, t.base07,
-            t.base08, t.base09, t.base0a, t.base0b,
-            t.base0c, t.base0d, t.base0e, t.base0f,
+            t.base00, t.base01, t.base02, t.base03, t.base04, t.base05, t.base06, t.base07,
+            t.base08, t.base09, t.base0a, t.base0b, t.base0c, t.base0d, t.base0e, t.base0f,
         ] {
             assert_eq!(slot[3], 1.0);
         }
