@@ -1,14 +1,21 @@
+use crate::selectable::Selectable;
+
 /// Tab bar with wrap-around keyboard navigation.
 #[derive(Debug, Clone)]
 pub struct TabBar {
     tabs: Vec<String>,
     active: usize,
+    focused: bool,
 }
 
 impl TabBar {
     #[must_use]
     pub fn new(tabs: Vec<String>) -> Self {
-        Self { tabs, active: 0 }
+        Self {
+            tabs,
+            active: 0,
+            focused: false,
+        }
     }
 
     /// Select the next tab, wrapping around to the first.
@@ -78,6 +85,51 @@ impl TabBar {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.tabs.is_empty()
+    }
+
+    /// Set whether this tab bar currently has keyboard focus.
+    ///
+    /// See [`ListView::set_focused`](crate::ListView::set_focused) for why
+    /// focus is widget-owned state and how it relates to
+    /// [`FocusManager`](crate::FocusManager).
+    pub fn set_focused(&mut self, focused: bool) {
+        self.focused = focused;
+    }
+
+    /// Whether this tab bar currently has keyboard focus.
+    #[must_use]
+    pub fn is_focused(&self) -> bool {
+        self.focused
+    }
+}
+
+/// `TabBar` needs exactly one alias to satisfy [`Selectable`]: it spells its
+/// cursor `active_index` because a *tab* is active rather than selected. The
+/// name stays (it is the right word for a tab bar and it is public API); the
+/// trait method forwards to it.
+///
+/// Note the movement semantics differ from [`ListView`](crate::ListView):
+/// `TabBar` **wraps**, a list **saturates**. Both satisfy the trait — see the
+/// `Selectable` docs on why movement direction is not part of the contract.
+impl Selectable for TabBar {
+    fn selected_index(&self) -> usize {
+        TabBar::active_index(self)
+    }
+
+    fn len(&self) -> usize {
+        TabBar::len(self)
+    }
+
+    fn select_next(&mut self) {
+        TabBar::select_next(self);
+    }
+
+    fn select_prev(&mut self) {
+        TabBar::select_prev(self);
+    }
+
+    fn is_empty(&self) -> bool {
+        TabBar::is_empty(self)
     }
 }
 
@@ -156,5 +208,13 @@ mod tests {
         tb.remove_tab(0);
         assert_eq!(tb.active_tab(), "Beta");
         assert_eq!(tb.len(), 2);
+    }
+
+    #[test]
+    fn starts_unfocused_and_focus_is_settable() {
+        let mut tb = TabBar::new(sample_tabs());
+        assert!(!tb.is_focused());
+        tb.set_focused(true);
+        assert!(tb.is_focused());
     }
 }
