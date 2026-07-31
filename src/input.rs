@@ -6,6 +6,7 @@ pub struct TextInput {
     text: String,
     cursor: usize,
     selection: Option<(usize, usize)>,
+    focused: bool,
 }
 
 impl TextInput {
@@ -15,6 +16,7 @@ impl TextInput {
             text: String::new(),
             cursor: 0,
             selection: None,
+            focused: false,
         }
     }
 
@@ -25,7 +27,26 @@ impl TextInput {
             text: s.to_string(),
             cursor: len,
             selection: None,
+            focused: false,
         }
+    }
+
+    /// Set whether this input currently has keyboard focus.
+    ///
+    /// See [`ListView::set_focused`](crate::ListView::set_focused) for why
+    /// focus is widget-owned state and how it relates to
+    /// [`FocusManager`](crate::FocusManager). Note that focus does NOT gate
+    /// editing — `insert_char` on an unfocused input still edits it. The flag
+    /// is a *render* fact (draw the cursor, draw the text bright) and the
+    /// caller remains responsible for routing keystrokes.
+    pub fn set_focused(&mut self, focused: bool) {
+        self.focused = focused;
+    }
+
+    /// Whether this input currently has keyboard focus.
+    #[must_use]
+    pub fn is_focused(&self) -> bool {
+        self.focused
     }
 
     /// Returns the full text content.
@@ -334,5 +355,25 @@ mod tests {
         input.select_all();
         input.delete_back();
         assert!(input.is_empty());
+    }
+
+    #[test]
+    fn starts_unfocused_and_focus_is_settable() {
+        let mut input = TextInput::new();
+        assert!(!input.is_focused());
+        assert!(!TextInput::with_text("seeded").is_focused());
+        input.set_focused(true);
+        assert!(input.is_focused());
+    }
+
+    #[test]
+    fn focus_does_not_gate_editing() {
+        // The flag is a render fact, not an input gate — routing keystrokes
+        // stays the caller's job. Pinning this so nobody later "fixes" the
+        // widget into silently swallowing edits.
+        let mut input = TextInput::new();
+        assert!(!input.is_focused());
+        input.insert_char('x');
+        assert_eq!(input.text(), "x");
     }
 }

@@ -1,3 +1,5 @@
+use crate::selectable::Selectable;
+
 /// Scrollable item list with keyboard selection.
 #[derive(Debug, Clone)]
 pub struct ListView {
@@ -5,6 +7,7 @@ pub struct ListView {
     selected: usize,
     offset: usize,
     visible_count: usize,
+    focused: bool,
 }
 
 impl ListView {
@@ -15,6 +18,7 @@ impl ListView {
             selected: 0,
             offset: 0,
             visible_count,
+            focused: false,
         }
     }
 
@@ -95,12 +99,60 @@ impl ListView {
         self.items.is_empty()
     }
 
+    /// Set whether this list currently has keyboard focus.
+    ///
+    /// Focus is *state the widget owns*, exactly as [`Modal`](crate::Modal)
+    /// owns its own visibility. A renderer that draws a widget uniformly (see
+    /// `egaku_term::Draw`) has one argument for the widget and none for an
+    /// out-of-band focus flag, so the flag has to live somewhere: here.
+    ///
+    /// [`FocusManager`](crate::FocusManager) remains the *authority* — it
+    /// tracks focus by widget NAME across a whole screen and answers "who has
+    /// it". This field is the projection of that answer onto one widget; drive
+    /// it from `FocusManager::focused_widget()` rather than setting both
+    /// independently.
+    pub fn set_focused(&mut self, focused: bool) {
+        self.focused = focused;
+    }
+
+    /// Whether this list currently has keyboard focus.
+    #[must_use]
+    pub fn is_focused(&self) -> bool {
+        self.focused
+    }
+
     fn ensure_visible(&mut self) {
         if self.selected < self.offset {
             self.offset = self.selected;
         } else if self.selected >= self.offset + self.visible_count {
             self.offset = self.selected + 1 - self.visible_count;
         }
+    }
+}
+
+/// `ListView` is the widget the [`Selectable`] signature was read off of —
+/// all four methods already existed with exactly these names and shapes, so
+/// the impl is pure forwarding to the inherent methods and changes no
+/// behaviour.
+impl Selectable for ListView {
+    fn selected_index(&self) -> usize {
+        ListView::selected_index(self)
+    }
+
+    fn len(&self) -> usize {
+        ListView::len(self)
+    }
+
+    fn select_next(&mut self) {
+        ListView::select_next(self);
+    }
+
+    fn select_prev(&mut self) {
+        ListView::select_prev(self);
+    }
+
+    fn is_empty(&self) -> bool {
+        ListView::is_empty(self)
     }
 }
 
@@ -215,5 +267,15 @@ mod tests {
     fn fewer_items_than_visible_count() {
         let lv = ListView::new(sample_items(2), 5);
         assert_eq!(lv.visible_items().len(), 2);
+    }
+
+    #[test]
+    fn starts_unfocused_and_focus_is_settable() {
+        let mut lv = ListView::new(sample_items(3), 3);
+        assert!(!lv.is_focused(), "a fresh list does not claim focus");
+        lv.set_focused(true);
+        assert!(lv.is_focused());
+        lv.set_focused(false);
+        assert!(!lv.is_focused());
     }
 }
