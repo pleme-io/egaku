@@ -24,6 +24,7 @@
 //! wrap point and preserves each half's style.
 
 use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
 /// A run of text sharing one caller-defined style index.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,9 +52,16 @@ impl Span {
     pub fn style(&self) -> u8 {
         self.style
     }
+    /// DISPLAY columns, not grapheme count.
+    ///
+    /// `日本語` is three graphemes and **six columns**; an emoji is one
+    /// grapheme and two. Counting graphemes here would wrap a CJK document
+    /// at twice the pane width and paint straight through the右 edge —
+    /// which is exactly the bug a pane-clipped renderer would then hide
+    /// rather than reveal.
     #[must_use]
     pub fn width(&self) -> usize {
-        self.text.graphemes(true).count()
+        UnicodeWidthStr::width(self.text.as_str())
     }
 }
 
@@ -298,7 +306,11 @@ fn wrap_spans(spans: &[Span], width: usize, source_line: usize, out: &mut Vec<Wr
         // correctness reason TextArea indexes by grapheme.
         let mut chunk = String::new();
         for g in span.text.graphemes(true) {
-            if used == width {
+            // Split on GRAPHEME boundaries, measure in DISPLAY COLUMNS. Both
+            // halves matter: splitting mid-grapheme corrupts the text,
+            // measuring in graphemes overflows the pane on CJK/emoji.
+            let gw = UnicodeWidthStr::width(g).max(1);
+            if used + gw > width && used > 0 {
                 if !chunk.is_empty() {
                     current.push(Span::new(std::mem::take(&mut chunk), span.style));
                 }
@@ -306,7 +318,7 @@ fn wrap_spans(spans: &[Span], width: usize, source_line: usize, out: &mut Vec<Wr
                 used = 0;
             }
             chunk.push_str(g);
-            used += 1;
+            used += gw;
         }
         if !chunk.is_empty() {
             current.push(Span::new(chunk, span.style));
@@ -395,6 +407,39 @@ mod tests {
         let s = v.wrapped()[0].spans();
         assert_eq!((s[0].text(), s[0].style()), ("ab", 1));
         assert_eq!((s[1].text(), s[1].style()), ("cd", 2));
+    }
+
+    /// The bug this file shipped with for one commit: `Span::width` counted
+    /// GRAPHEMES, so a CJK document wrapped at twice the pane width and
+    /// painted straight through the right edge. `日本語` is 3 graphemes and
+    /// 6 columns — at width 4 it must occupy two rows, not one.
+    #[test]
+    fn wrapping_measures_display_columns_not_grapheme_count() {
+        let v = TextView::from_text("日本語", 4, 10);
+        assert_eq!(v.total_rows(), 2, "3 graphemes / 6 cols does not fit in 4");
+        assert_eq!(v.wrapped()[0].text(), "日本", "two wide chars fill 4 columns");
+        assert_eq!(v.wrapped()[0].width(), 4);
+        assert_eq!(v.wrapped()[1].text(), "語");
+    }
+
+    /// A wide grapheme must never be split to make it fit, and must never
+    /// silently overflow either — it moves whole to the next row.
+    #[test]
+    fn a_wide_grapheme_moves_whole_rather_than_splitting() {
+        let v = TextView::from_text("a日", 2, 10);
+        assert_eq!(v.total_rows(), 2);
+        assert_eq!(v.wrapped()[0].text(), "a");
+        assert_eq!(v.wrapped()[1].text(), "日", "the 2-col char moved intact");
+    }
+
+    /// Degenerate: a width narrower than a single wide grapheme must still
+    /// terminate and still emit the grapheme, rather than loop forever
+    /// trying to fit it.
+    #[test]
+    fn a_grapheme_wider_than_the_viewport_still_terminates() {
+        let v = TextView::from_text("日日", 1, 10);
+        assert_eq!(v.total_rows(), 2, "one per row, overflowing by design");
+        assert_eq!(v.wrapped()[0].text(), "日");
     }
 
     /// A wrap must never land inside a grapheme.
