@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "f316b18857b5a7035925a929bf2148e1cc85c8511d4c49ddeacbb769b17a93f4",
+  "cargo_lock_sha256": "f3724f5dfdbaa8693cb9dc99e4f5fd960c864bd39ed3e2c844566053e30a6fdb",
   "manifest_sha256": {
-    "Cargo.toml": "1eda7cb61368f40ef02d83c09c8d2ab96fbff19f0f8675d5fdb4b1707170f2eb"
+    "Cargo.toml": "a83a46478bfd04a8712c549267945ed3ef4f16063a4406d956ad4306664bd4d7"
   },
   "target_resolves": {
     "base": {
@@ -18,7 +18,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "egaku-0.1.5": {
+      "egaku-0.1.6": {
         "runtime_dependencies": [
           {
             "name": "serde",
@@ -1385,7 +1385,7 @@
     "cfg-if-1.0.4": {
       "edition": "2018"
     },
-    "egaku-0.1.5": {
+    "egaku-0.1.6": {
       "edition": "2024",
       "lib_target": {
         "name": "egaku",
