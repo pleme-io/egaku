@@ -46,6 +46,8 @@ pub mod selectable;
 pub mod split;
 pub mod table;
 pub mod tabs;
+pub mod textarea;
+pub mod textview;
 pub mod theme;
 
 pub use diff::{DiffLine, DiffMode, DiffView, FileDiff, Hunk, LineKind, Row};
@@ -63,4 +65,6 @@ pub use selectable::Selectable;
 pub use split::{Orientation, SplitPane};
 pub use table::{Column, IDENTITY_FIELD, SortKey, SortOrder, TableError, TableRow, TableView};
 pub use tabs::TabBar;
+pub use textarea::TextArea;
+pub use textview::{Span, TextView, WrappedLine};
 pub use theme::Theme;
