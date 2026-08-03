@@ -33,6 +33,7 @@
 //! unicode-*, with no renderer and no backend, which is what lets one widget
 //! state machine drive a GPU pane and a TTY pane from the same value.
 
+pub mod chigai;
 pub mod diff;
 pub mod focus;
 pub mod input;
@@ -60,6 +61,7 @@ pub use modal::Modal;
 pub use picker::{
     FuzzyPicker, PickerEffect, PickerEvent, PickerItem, PickerState, PickerStep, PickerView,
 };
+pub use chigai::{Change, Diff, DiffOptions};
 pub use scroll::{ScrollKinetics, ScrollKineticsConfig, ScrollView};
 pub use selectable::Selectable;
 pub use split::{Orientation, SplitPane};
