@@ -33,6 +33,7 @@
 //! unicode-*, with no renderer and no backend, which is what lets one widget
 //! state machine drive a GPU pane and a TTY pane from the same value.
 
+pub mod diff;
 pub mod focus;
 pub mod input;
 pub mod keymap;
@@ -47,6 +48,7 @@ pub mod table;
 pub mod tabs;
 pub mod theme;
 
+pub use diff::{DiffLine, DiffMode, DiffView, FileDiff, Hunk, LineKind, Row};
 pub use focus::FocusManager;
 pub use input::TextInput;
 pub use keymap::{KeyCombo, KeyMap};
