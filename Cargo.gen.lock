@@ -1,11 +1,49 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "64904a7e54caaf63853e672ce829b355528b6f57108e0767d900f65aec5b5323",
+  "cargo_lock_sha256": "3b7fd4dcb03b71aa0a89acc7bc9de3a9d426760c3feaef28384d949948ada278",
   "manifest_sha256": {
-    "Cargo.toml": "8bbb556d9d94e59b02c552b4b812fa4b78c016fc0506f11c8037681c2afa7bcb"
+    "Cargo.toml": "ae2c8d85506430163e88663b86c8d9ac67755983b81836f05bea46eb555a596f"
   },
   "target_resolves": {
     "base": {
+      "awase-0.1.7": {
+        "runtime_dependencies": [
+          {
+            "name": "serde",
+            "package_key": "serde-1.0.229",
+            "kind": "normal",
+            "features": [
+              "derive"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "thiserror",
+            "package_key": "thiserror-2.0.19",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "tracing",
+            "package_key": "tracing-0.1.44",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
       "bitflags-2.13.1": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -20,6 +58,16 @@
       },
       "egaku-0.1.9": {
         "runtime_dependencies": [
+          {
+            "name": "awase",
+            "package_key": "awase-0.1.7",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
           {
             "name": "serde",
             "package_key": "serde-1.0.229",
@@ -1379,6 +1427,9 @@
     }
   },
   "per_crate": {
+    "awase-0.1.7": {
+      "edition": "2024"
+    },
     "bitflags-2.13.1": {
       "edition": "2021"
     },
