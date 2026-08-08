@@ -18,6 +18,11 @@ missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 
 [dependencies]
+# The fleet's chord vocabulary. `KeyCombo` canonicalises through it so two
+# spellings of one chord are one HashMap key — see the type's docs for the
+# three places the fleet independently hit the silent-miss this closes.
+awase = "0.1"
+
 serde = { version = "1", features = ["derive"] }
 tracing = "0.1"
 thiserror = "2"
