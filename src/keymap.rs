@@ -30,9 +30,17 @@ use std::collections::HashMap;
 /// # What this does not fix
 ///
 /// A name `awase` does not know is kept verbatim (lowercased and trimmed)
-/// rather than rejected, so nothing that works today stops working. `backtab`
-/// is the one such name `egaku-term` emits — measured, not assumed. Those
-/// keys keep the old exact-match behaviour.
+/// rather than rejected, so nothing that works today stops working. Measured
+/// rather than assumed: the names `egaku-term` emits that `awase` cannot
+/// parse are the ten shifted digits (`! @ # $ % ^ & * ( )`) and `f21`–`f35`.
+/// All of them bind and look up correctly here and stay distinct from one
+/// another — they simply take the verbatim path, where case and duplicate
+/// modifiers are still normalised. `keys_outside_awases_vocabulary_still_round_trip`
+/// pins that.
+///
+/// `backtab` WAS on that list and is no longer: it resolves to `shift+tab`,
+/// because that is what the key is and what `egaku-term`'s typed path already
+/// says it is.
 ///
 /// **The destination is a `KeyMap` keyed on `awase::Hotkey` directly**, where
 /// a misspelled key is a compile error rather than a canonicalised string.
@@ -64,10 +72,21 @@ impl KeyCombo {
         // see an empty string — which is exactly how a real spacebar press
         // came to be delivered as `" "` and match no binding anyone could
         // write.
-        let raw = if !key.is_empty() && key.trim().is_empty() {
+        let trimmed = key.trim();
+        let raw = if !key.is_empty() && trimmed.is_empty() {
             "space"
+        } else if trimmed.eq_ignore_ascii_case("backtab") {
+            // BackTab IS shift+tab. `egaku-term`'s TYPED path already says so
+            // (`KeyCode::Tab | KeyCode::BackTab => AKey::Tab`, with the
+            // modifier added separately, because crossterm reports the
+            // composite as its own code and "does not always set SHIFT").
+            // Its STRING path never got that treatment, so one physical press
+            // produced `{backtab, []}` or `{backtab, ["shift"]}` depending on
+            // the terminal — two unmatchable values for one keypress, which
+            // is the class this whole function exists to close.
+            "shift+tab"
         } else {
-            key.trim()
+            trimmed
         };
 
         // Ask awase to resolve the whole chord. Modifiers go in with it so
@@ -279,16 +298,61 @@ mod tests {
         }
 
         #[test]
+        fn one_shift_tab_press_is_one_value_however_the_terminal_reports_it() {
+            // egaku-term's string path emits the name "backtab" and adds
+            // "shift" only when crossterm sets it — which its own comment
+            // says it does NOT always do. So the same physical press arrived
+            // as two different values, neither reachable from the other.
+            let bare = KeyCombo::key("backtab");
+            let shifted = KeyCombo::new("backtab", vec!["shift".into()]);
+            assert_eq!(bare, shifted, "both spellings are one keypress");
+
+            // …and it is the same chord as an explicitly written shift+tab,
+            // which is what BackTab MEANS and what the typed path resolves.
+            assert_eq!(bare, KeyCombo::new("tab", vec!["shift".into()]));
+
+            let mut km = KeyMap::new();
+            km.bind(KeyCombo::key("backtab"), Action::Quit);
+            assert_eq!(km.lookup(&shifted), Some(&Action::Quit));
+            assert_eq!(
+                km.lookup(&KeyCombo::new("tab", vec!["shift".into()])),
+                Some(&Action::Quit),
+            );
+            // A plain Tab must NOT collide with it.
+            assert_eq!(km.lookup(&KeyCombo::key("tab")), None);
+        }
+
+        #[test]
+        fn keys_outside_awases_vocabulary_still_round_trip() {
+            // The stated limit, measured rather than asserted. A recon pass
+            // claimed 27 names were broken; those were measured against
+            // `awase::Key::from_name`, which this path does not call. Through
+            // `KeyCombo` they are kept verbatim and bind/look up correctly —
+            // and, critically, stay DISTINCT from one another.
+            let exotic = ["!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "f21", "f35"];
+            let mut km = KeyMap::new();
+            for (i, n) in exotic.iter().enumerate() {
+                km.bind(KeyCombo::key(n), i);
+            }
+            assert_eq!(km.len(), exotic.len(), "no two collapsed into one");
+            for (i, n) in exotic.iter().enumerate() {
+                assert_eq!(km.lookup(&KeyCombo::key(n)), Some(&i), "{n} did not round-trip");
+            }
+        }
+
+        #[test]
         fn a_key_awase_does_not_know_still_works() {
             // The stated limit. `backtab` is outside awase's vocabulary and
             // must keep the old exact-match behaviour rather than being
             // dropped — a canonicalisation that silently lost a binding
             // would be the same defect wearing a different hat.
+            // `backtab` is no longer an example — it resolves to shift+tab
+            // now. Use a name awase genuinely does not carry.
             let mut km = KeyMap::new();
-            km.bind(KeyCombo::key("backtab"), Action::Quit);
-            assert_eq!(km.lookup(&KeyCombo::key("backtab")), Some(&Action::Quit));
+            km.bind(KeyCombo::key("kp_begin"), Action::Quit);
+            assert_eq!(km.lookup(&KeyCombo::key("kp_begin")), Some(&Action::Quit));
             // …and case is still closed on that path.
-            assert_eq!(km.lookup(&KeyCombo::key("BackTab")), Some(&Action::Quit));
+            assert_eq!(km.lookup(&KeyCombo::key("KP_Begin")), Some(&Action::Quit));
         }
 
         #[test]
