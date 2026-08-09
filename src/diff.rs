@@ -104,8 +104,16 @@ impl Hunk {
     /// `(added, removed)` for this hunk.
     #[must_use]
     pub fn stats(&self) -> (usize, usize) {
-        let a = self.lines.iter().filter(|l| l.kind == LineKind::Added).count();
-        let r = self.lines.iter().filter(|l| l.kind == LineKind::Removed).count();
+        let a = self
+            .lines
+            .iter()
+            .filter(|l| l.kind == LineKind::Added)
+            .count();
+        let r = self
+            .lines
+            .iter()
+            .filter(|l| l.kind == LineKind::Removed)
+            .count();
         (a, r)
     }
 }
@@ -178,7 +186,11 @@ pub enum Row<'a> {
     /// A hunk's `@@` header. Always emitted when its file is expanded.
     HunkHeader { file: &'a FileDiff, hunk: &'a Hunk },
     /// A content line, unified layout.
-    Line { file: &'a FileDiff, hunk: &'a Hunk, line: &'a DiffLine },
+    Line {
+        file: &'a FileDiff,
+        hunk: &'a Hunk,
+        line: &'a DiffLine,
+    },
     /// A content line, side-by-side. Either side may be absent.
     SideBySide {
         file: &'a FileDiff,
@@ -339,7 +351,11 @@ impl DiffView {
             });
         }
 
-        Self { files, cursor: 0, mode: DiffMode::Unified }
+        Self {
+            files,
+            cursor: 0,
+            mode: DiffMode::Unified,
+        }
     }
 
     #[must_use]
@@ -394,7 +410,11 @@ impl DiffView {
                 match self.mode {
                     DiffMode::Unified => {
                         for line in &h.lines {
-                            out.push(Row::Line { file: f, hunk: h, line });
+                            out.push(Row::Line {
+                                file: f,
+                                hunk: h,
+                                line,
+                            });
                         }
                     }
                     DiffMode::SideBySide => pair_rows(f, h, &mut out),
@@ -449,9 +469,18 @@ impl DiffView {
     fn jump(&mut self, pred: impl Fn(&Row<'_>) -> bool, forward: bool) -> bool {
         let rows = self.rows();
         let found = if forward {
-            rows.iter().enumerate().skip(self.cursor + 1).find(|(_, r)| pred(r)).map(|(i, _)| i)
+            rows.iter()
+                .enumerate()
+                .skip(self.cursor + 1)
+                .find(|(_, r)| pred(r))
+                .map(|(i, _)| i)
         } else {
-            rows.iter().enumerate().take(self.cursor).filter(|(_, r)| pred(r)).next_back().map(|(i, _)| i)
+            rows.iter()
+                .enumerate()
+                .take(self.cursor)
+                .filter(|(_, r)| pred(r))
+                .next_back()
+                .map(|(i, _)| i)
         };
         match found {
             Some(i) => {
@@ -512,13 +541,11 @@ impl DiffView {
             Row::File(f) => (f.path.as_str(), None),
             Row::HunkHeader { file, hunk } => (file.path.as_str(), Some(hunk.header.as_str())),
             Row::Line { file, hunk, .. } => (file.path.as_str(), Some(hunk.header.as_str())),
-            Row::SideBySide { file, hunk, .. } => {
-                (file.path.as_str(), Some(hunk.header.as_str()))
-            }
+            Row::SideBySide { file, hunk, .. } => (file.path.as_str(), Some(hunk.header.as_str())),
         };
         let fi = self.files.iter().position(|f| f.path == target_file)?;
-        let hi = target_hunk
-            .and_then(|hh| self.files[fi].hunks.iter().position(|h| h.header == hh));
+        let hi =
+            target_hunk.and_then(|hh| self.files[fi].hunks.iter().position(|h| h.header == hh));
         Some((fi, hi))
     }
 
@@ -599,14 +626,18 @@ fn leading_u32(s: &str) -> u32 {
 /// so a real top-level `a/` directory survives when git did not add a prefix.
 fn strip_ab_prefix(p: &str) -> &str {
     let p = p.split('\t').next().unwrap_or(p).trim_end();
-    p.strip_prefix("a/").or_else(|| p.strip_prefix("b/")).unwrap_or(p)
+    p.strip_prefix("a/")
+        .or_else(|| p.strip_prefix("b/"))
+        .unwrap_or(p)
 }
 
 /// `a/x b/x` → `x`. Uses the SECOND half (the new path).
 fn git_header_path(rest: &str) -> String {
     let mut parts = rest.split_whitespace();
     let _old = parts.next();
-    parts.next().map_or_else(String::new, |b| strip_ab_prefix(b).to_owned())
+    parts
+        .next()
+        .map_or_else(String::new, |b| strip_ab_prefix(b).to_owned())
 }
 
 #[cfg(test)]
@@ -651,14 +682,29 @@ diff --git a/README.md b/README.md
         let d = DiffView::parse(DIFF);
         let lines = d.files()[0].hunks()[0].lines();
         // @@ -10,6 +10,7 @@
-        assert_eq!((lines[0].old_lineno(), lines[0].new_lineno()), (Some(10), Some(10)));
+        assert_eq!(
+            (lines[0].old_lineno(), lines[0].new_lineno()),
+            (Some(10), Some(10))
+        );
         // removed: old advances, new does not
-        assert_eq!((lines[1].old_lineno(), lines[1].new_lineno()), (Some(11), None));
+        assert_eq!(
+            (lines[1].old_lineno(), lines[1].new_lineno()),
+            (Some(11), None)
+        );
         // added ×2: new advances, old does not
-        assert_eq!((lines[2].old_lineno(), lines[2].new_lineno()), (None, Some(11)));
-        assert_eq!((lines[3].old_lineno(), lines[3].new_lineno()), (None, Some(12)));
+        assert_eq!(
+            (lines[2].old_lineno(), lines[2].new_lineno()),
+            (None, Some(11))
+        );
+        assert_eq!(
+            (lines[3].old_lineno(), lines[3].new_lineno()),
+            (None, Some(12))
+        );
         // context resumes on both, each having advanced by its own count
-        assert_eq!((lines[4].old_lineno(), lines[4].new_lineno()), (Some(12), Some(13)));
+        assert_eq!(
+            (lines[4].old_lineno(), lines[4].new_lineno()),
+            (Some(12), Some(13))
+        );
     }
 
     #[test]
@@ -701,7 +747,12 @@ diff --git a/README.md b/README.md
         let last = d.row_count() - 1;
         d.set_cursor(last);
         d.collapse_all_files();
-        assert!(d.cursor() < d.row_count(), "cursor {} vs {}", d.cursor(), d.row_count());
+        assert!(
+            d.cursor() < d.row_count(),
+            "cursor {} vs {}",
+            d.cursor(),
+            d.row_count()
+        );
     }
 
     #[test]
@@ -760,7 +811,11 @@ diff --git a/README.md b/README.md
         let before = d.files().to_vec();
         d.toggle_mode();
         assert_eq!(d.mode(), DiffMode::SideBySide);
-        assert_eq!(d.files(), before.as_slice(), "structure is layout-independent");
+        assert_eq!(
+            d.files(),
+            before.as_slice(),
+            "structure is layout-independent"
+        );
         d.toggle_mode();
         assert_eq!(d.mode(), DiffMode::Unified);
     }
@@ -798,7 +853,9 @@ diff --git a/README.md b/README.md
     /// message mentioning `+1` is not an added line.
     #[test]
     fn preamble_outside_a_hunk_is_not_content() {
-        let d = DiffView::parse("commit abc\n+not a real addition\ndiff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n+real\n");
+        let d = DiffView::parse(
+            "commit abc\n+not a real addition\ndiff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n+real\n",
+        );
         assert_eq!(d.files().len(), 1);
         assert_eq!(d.stats(), (1, 0));
     }
@@ -824,7 +881,9 @@ diff --git a/README.md b/README.md
 
     #[test]
     fn no_newline_marker_belongs_to_neither_side() {
-        let d = DiffView::parse("--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n\\ No newline at end of file\n");
+        let d = DiffView::parse(
+            "--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n\\ No newline at end of file\n",
+        );
         let lines = d.files()[0].hunks()[0].lines();
         let last = lines.last().unwrap();
         assert_eq!(last.kind(), LineKind::NoNewline);

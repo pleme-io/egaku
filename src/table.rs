@@ -395,9 +395,28 @@ impl<R: TableRow> TableView<R> {
     }
 
     /// The value one row projects for a *field* (not a header).
+    ///
+    /// # The identity field asks a DISPLAY question, not an ACT question
+    ///
+    /// [`TableRow::identity`] answers "which object is this" — it must stay
+    /// stable across a delete-and-recreate, so a consumer addressing objects
+    /// (a Kubernetes navigator, say) returns the server's uid from it. The
+    /// identity *column* asks something different: "what do I show the human
+    /// in the NAME column".
+    ///
+    /// Collapsing the two was a measured regression: a consumer that moved
+    /// `identity()` from the object's name to its uid found its NAME column
+    /// rendering `uid-v1-v1-Pod-demo-web-217ffebd52-0-14` (banken, 2026-08-09),
+    /// because this function reached `identity()` unconditionally and never
+    /// consulted the row.
+    ///
+    /// So a row may now OVERRIDE the display by answering
+    /// `cell(IDENTITY_FIELD)`, and `identity()` remains the fallback — which
+    /// keeps every existing consumer byte-identical, since a row that does not
+    /// populate the field still renders exactly what it did before.
     fn project<'a>(row: &'a R, field: &str) -> &'a str {
         if field == IDENTITY_FIELD {
-            row.identity()
+            row.cell(field).unwrap_or_else(|| row.identity())
         } else {
             row.cell(field).unwrap_or("")
         }
@@ -480,6 +499,78 @@ impl<R: TableRow> Selectable for TableView<R> {
 
     fn is_empty(&self) -> bool {
         TableView::is_empty(self)
+    }
+}
+
+#[cfg(test)]
+mod identity_projection_tests {
+    use super::*;
+
+    struct Pod {
+        uid: String,
+        name: String,
+    }
+
+    impl TableRow for Pod {
+        fn identity(&self) -> &str {
+            &self.uid
+        }
+        fn cell(&self, field: &str) -> Option<&str> {
+            (field == IDENTITY_FIELD).then_some(self.name.as_str())
+        }
+    }
+
+    struct Plain(String);
+
+    impl TableRow for Plain {
+        fn identity(&self) -> &str {
+            &self.0
+        }
+        fn cell(&self, _field: &str) -> Option<&str> {
+            None
+        }
+    }
+
+    /// A row may override what the identity COLUMN displays without changing
+    /// what `identity()` means for addressing an object.
+    #[test]
+    fn a_row_may_override_the_identity_columns_display() {
+        let view = TableView::new(
+            vec![Column::new("NAME", IDENTITY_FIELD)],
+            vec![Pod {
+                uid: "uid-v1-v1-Pod-demo-web-0".into(),
+                name: "web-0".into(),
+            }],
+            SortKey::new("NAME", SortOrder::Asc),
+        )
+        .expect("a single identity column is valid");
+        let row = &view.rows()[0];
+        assert_eq!(
+            TableView::project(row, IDENTITY_FIELD),
+            "web-0",
+            "the NAME column must show the name the row supplies",
+        );
+        assert_eq!(
+            row.identity(),
+            "uid-v1-v1-Pod-demo-web-0",
+            "addressing identity is untouched",
+        );
+    }
+
+    /// And a row that supplies nothing still renders `identity()` — so every
+    /// pre-existing consumer is byte-identical.
+    #[test]
+    fn a_row_that_overrides_nothing_still_renders_identity() {
+        let view = TableView::new(
+            vec![Column::new("NAME", IDENTITY_FIELD)],
+            vec![Plain("just-a-name".into())],
+            SortKey::new("NAME", SortOrder::Asc),
+        )
+        .expect("valid");
+        assert_eq!(
+            TableView::project(&view.rows()[0], IDENTITY_FIELD),
+            "just-a-name",
+        );
     }
 }
 

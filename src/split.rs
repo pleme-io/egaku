@@ -20,7 +20,11 @@ impl SplitPane {
     #[must_use]
     pub fn new(orientation: Orientation, ratio: f32, min_ratio: f32) -> Self {
         let clamped = ratio.clamp(min_ratio, 1.0 - min_ratio);
-        Self { ratio: clamped, orientation, min_ratio }
+        Self {
+            ratio: clamped,
+            orientation,
+            min_ratio,
+        }
     }
 
     /// Create a horizontal split at 50%.
@@ -71,11 +75,21 @@ impl SplitPane {
         match self.orientation {
             Orientation::Horizontal => {
                 let first_w = bounds.width * self.ratio;
-                Rect::new(bounds.x + first_w, bounds.y, bounds.width - first_w, bounds.height)
+                Rect::new(
+                    bounds.x + first_w,
+                    bounds.y,
+                    bounds.width - first_w,
+                    bounds.height,
+                )
             }
             Orientation::Vertical => {
                 let first_h = bounds.height * self.ratio;
-                Rect::new(bounds.x, bounds.y + first_h, bounds.width, bounds.height - first_h)
+                Rect::new(
+                    bounds.x,
+                    bounds.y + first_h,
+                    bounds.width,
+                    bounds.height - first_h,
+                )
             }
         }
     }

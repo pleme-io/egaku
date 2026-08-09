@@ -10,12 +10,22 @@ pub struct Rect {
 impl Rect {
     #[must_use]
     pub const fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
     #[must_use]
     pub const fn zero() -> Self {
-        Self { x: 0.0, y: 0.0, width: 0.0, height: 0.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            width: 0.0,
+            height: 0.0,
+        }
     }
 
     #[must_use]
@@ -64,8 +74,15 @@ impl Rect {
     pub fn split_h(&self, ratio: f32) -> (Self, Self) {
         let left_w = self.width * ratio;
         (
-            Self { width: left_w, ..*self },
-            Self { x: self.x + left_w, width: self.width - left_w, ..*self },
+            Self {
+                width: left_w,
+                ..*self
+            },
+            Self {
+                x: self.x + left_w,
+                width: self.width - left_w,
+                ..*self
+            },
         )
     }
 
@@ -74,8 +91,15 @@ impl Rect {
     pub fn split_v(&self, ratio: f32) -> (Self, Self) {
         let top_h = self.height * ratio;
         (
-            Self { height: top_h, ..*self },
-            Self { y: self.y + top_h, height: self.height - top_h, ..*self },
+            Self {
+                height: top_h,
+                ..*self
+            },
+            Self {
+                y: self.y + top_h,
+                height: self.height - top_h,
+                ..*self
+            },
         )
     }
 }
@@ -92,19 +116,34 @@ pub struct Padding {
 impl Padding {
     #[must_use]
     pub const fn new(top: f32, right: f32, bottom: f32, left: f32) -> Self {
-        Self { top, right, bottom, left }
+        Self {
+            top,
+            right,
+            bottom,
+            left,
+        }
     }
 
     /// Create uniform padding on all sides.
     #[must_use]
     pub const fn uniform(v: f32) -> Self {
-        Self { top: v, right: v, bottom: v, left: v }
+        Self {
+            top: v,
+            right: v,
+            bottom: v,
+            left: v,
+        }
     }
 
     /// Create symmetric padding: `h` for left/right, `v` for top/bottom.
     #[must_use]
     pub const fn symmetric(h: f32, v: f32) -> Self {
-        Self { top: v, right: h, bottom: v, left: h }
+        Self {
+            top: v,
+            right: h,
+            bottom: v,
+            left: h,
+        }
     }
 
     /// Total horizontal padding (left + right).

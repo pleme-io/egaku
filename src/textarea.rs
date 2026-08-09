@@ -275,7 +275,9 @@ impl TextArea {
     /// panic on a slice boundary.
     fn byte_offset(&self, row: usize, col: usize) -> usize {
         let s = &self.rows[row];
-        s.grapheme_indices(true).nth(col).map_or(s.len(), |(i, _)| i)
+        s.grapheme_indices(true)
+            .nth(col)
+            .map_or(s.len(), |(i, _)| i)
     }
 }
 
@@ -390,7 +392,11 @@ mod tests {
         t.move_down();
         t.insert_char('X');
         t.move_down();
-        assert_eq!(t.cursor(), (2, 3), "column follows the edit, not the memory");
+        assert_eq!(
+            t.cursor(),
+            (2, 3),
+            "column follows the edit, not the memory"
+        );
     }
 
     #[test]
