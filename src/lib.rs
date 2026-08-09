@@ -61,6 +61,7 @@ pub use list::ListView;
 pub use modal::Modal;
 pub use picker::{
     FuzzyPicker, PickerEffect, PickerEvent, PickerItem, PickerState, PickerStep, PickerView,
+    QueryGuard,
 };
 pub use scroll::{ScrollKinetics, ScrollKineticsConfig, ScrollView};
 pub use selectable::Selectable;

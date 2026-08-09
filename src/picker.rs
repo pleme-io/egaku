@@ -220,6 +220,55 @@ pub struct PickerView<'a, T> {
     pub selected: usize,
 }
 
+/// Exclusive access to a [`FuzzyPicker`]'s query, refiltering on drop.
+///
+/// # Why this exists, given `on_event` is the only mutation channel
+///
+/// That rule is kept, not broken — what it is *for* is that the filtered view
+/// can never fall out of step with the query text. A `query_mut()` returning a
+/// bare `&mut TextInput` would break it; a guard that refilters when it drops
+/// enforces the same invariant by a different mechanism, and cannot be
+/// forgotten because `Drop` is not optional.
+///
+/// It exists because [`PickerEvent`] cannot express editing. Its seven arms
+/// carry `Type(char)` and `Backspace` and nothing else — no cursor motion, no
+/// range delete — so a consumer wanting `w`, `b`, `dw`, `ciw` over the query
+/// had no path at all. Adding those as events was the alternative and is
+/// worse: `PickerEvent` is not `#[non_exhaustive]`, so every new arm breaks
+/// every downstream exhaustive match, and cargo treats `0.1.x` as compatible
+/// — the break would arrive silently through `cargo update`.
+///
+/// The selection resets to the top on drop, matching what `Type`/`Backspace`
+/// already do: after the row set changes, holding a stale index would leave
+/// the highlight on an unrelated row.
+/// `T: Clone` because [`Drop`] refilters, and refiltering lives on
+/// `impl<T: Clone> FuzzyPicker<T>` — Rust requires a `Drop` impl to carry the
+/// same bounds as its struct, so the bound belongs here rather than only on
+/// the impl.
+pub struct QueryGuard<'a, T: Clone> {
+    picker: &'a mut FuzzyPicker<T>,
+}
+
+impl<T: Clone> std::ops::Deref for QueryGuard<'_, T> {
+    type Target = TextInput;
+    fn deref(&self) -> &TextInput {
+        &self.picker.query
+    }
+}
+
+impl<T: Clone> std::ops::DerefMut for QueryGuard<'_, T> {
+    fn deref_mut(&mut self) -> &mut TextInput {
+        &mut self.picker.query
+    }
+}
+
+impl<T: Clone> Drop for QueryGuard<'_, T> {
+    fn drop(&mut self) {
+        self.picker.selected = 0;
+        self.picker.recompute();
+    }
+}
+
 impl<T: Clone> FuzzyPicker<T> {
     /// A closed picker over `items`. The view is pre-filtered for the
     /// empty query (everything, frecency-ranked) so a consumer that
@@ -258,6 +307,27 @@ impl<T: Clone> FuzzyPicker<T> {
 
     /// The current query text.
     #[must_use]
+    /// Edit the query directly, refiltering when the returned guard drops.
+    ///
+    /// The escape hatch for editing [`PickerEvent`] cannot express — cursor
+    /// motions, range deletes, anything a modal editor does. See
+    /// [`QueryGuard`] for why this does not break the "one mutation channel"
+    /// rule it appears to.
+    ///
+    /// ```
+    /// use egaku::{FuzzyPicker, PickerItem, PickerEvent};
+    /// let mut p = FuzzyPicker::new(vec![
+    ///     PickerItem::new(1u8, "alpha"),
+    ///     PickerItem::new(2u8, "beta"),
+    /// ]);
+    /// p.on_event(PickerEvent::Open);
+    /// p.query_mut().insert_char('b');
+    /// assert_eq!(p.visible_count(), 1, "the view refiltered on drop");
+    /// ```
+    pub fn query_mut(&mut self) -> QueryGuard<'_, T> {
+        QueryGuard { picker: self }
+    }
+
     pub fn query(&self) -> &str {
         self.query.text()
     }
@@ -538,6 +608,77 @@ pub fn fuzzy_score(needle: &str, haystack: &str) -> Option<i32> {
         Some(score - (i32::try_from(hay.len()).unwrap_or(i32::MAX) / 16))
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod query_guard_tests {
+    use super::*;
+
+    fn picker() -> FuzzyPicker<u8> {
+        let mut p = FuzzyPicker::new(vec![
+            PickerItem::new(1, "alpha"),
+            PickerItem::new(2, "beta"),
+            PickerItem::new(3, "gamma"),
+        ]);
+        let _ = p.on_event(PickerEvent::Open);
+        p
+    }
+
+    /// **THE GUARD'S WHOLE CONTRACT.** The rule `on_event` enforces is that
+    /// the filtered view never falls out of step with the query. A bare
+    /// `&mut TextInput` would break it; the guard must re-establish it on
+    /// drop, without the caller doing anything.
+    #[test]
+    fn the_view_refilters_when_the_guard_drops() {
+        let mut p = picker();
+        assert_eq!(p.visible_count(), 3);
+        p.query_mut().insert_char('b');
+        assert_eq!(p.visible_count(), 1, "refiltered with no explicit call");
+        assert_eq!(p.selected_key(), Some(&2));
+    }
+
+    /// Editing the query is what `PickerEvent` cannot express — this is the
+    /// reason the guard exists. A range delete has no event arm at all.
+    #[test]
+    fn an_edit_no_picker_event_can_express_still_refilters() {
+        let mut p = picker();
+        {
+            let mut q = p.query_mut();
+            q.insert_char('g');
+            q.insert_char('a');
+            q.insert_char('m');
+            // Cursor motion + a backward delete: no `PickerEvent` reaches
+            // either of these.
+            q.move_to_start();
+            q.delete_forward();
+        }
+        assert_eq!(p.query(), "am");
+        assert_eq!(p.visible_count(), 1, "`gamma` still matches `am`");
+    }
+
+    /// The selection resets to the top, matching `Type`/`Backspace`. Holding a
+    /// stale index across a row-set change leaves the highlight on an
+    /// unrelated row.
+    #[test]
+    fn the_selection_returns_to_the_top_after_an_edit() {
+        let mut p = picker();
+        let _ = p.on_event(PickerEvent::NavDown);
+        let _ = p.on_event(PickerEvent::NavDown);
+        assert_eq!(p.selected_key(), Some(&3));
+        p.query_mut().insert_char('a');
+        assert_eq!(p.selected_key(), Some(&1), "back to the first match");
+    }
+
+    /// A guard taken and dropped without an edit must not disturb anything —
+    /// otherwise merely *looking* would move the operator's highlight.
+    #[test]
+    fn taking_the_guard_without_editing_changes_nothing() {
+        let mut p = picker();
+        let _ = p.on_event(PickerEvent::NavDown);
+        let before = (p.query().to_owned(), p.visible_count());
+        drop(p.query_mut());
+        assert_eq!((p.query().to_owned(), p.visible_count()), before);
     }
 }
 
