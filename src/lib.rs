@@ -51,6 +51,7 @@ pub mod textarea;
 pub mod textview;
 pub mod theme;
 
+pub use chigai::{Change, Diff, DiffOptions};
 pub use diff::{DiffLine, DiffMode, DiffView, FileDiff, Hunk, LineKind, Row};
 pub use focus::FocusManager;
 pub use input::TextInput;
@@ -61,7 +62,6 @@ pub use modal::Modal;
 pub use picker::{
     FuzzyPicker, PickerEffect, PickerEvent, PickerItem, PickerState, PickerStep, PickerView,
 };
-pub use chigai::{Change, Diff, DiffOptions};
 pub use scroll::{ScrollKinetics, ScrollKineticsConfig, ScrollView};
 pub use selectable::Selectable;
 pub use split::{Orientation, SplitPane};

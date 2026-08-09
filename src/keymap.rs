@@ -108,11 +108,16 @@ impl KeyCombo {
             // the binding. Still lowercased, sorted and de-duplicated, so the
             // case and duplicate classes are closed even here.
             Err(_) => {
-                let mut mods: Vec<String> =
-                    modifiers.iter().map(|m| m.trim().to_ascii_lowercase()).collect();
+                let mut mods: Vec<String> = modifiers
+                    .iter()
+                    .map(|m| m.trim().to_ascii_lowercase())
+                    .collect();
                 mods.sort();
                 mods.dedup();
-                Self { key: raw.to_ascii_lowercase(), modifiers: mods }
+                Self {
+                    key: raw.to_ascii_lowercase(),
+                    modifiers: mods,
+                }
             }
         }
     }
@@ -148,7 +153,9 @@ pub struct KeyMap<A> {
 impl<A> KeyMap<A> {
     #[must_use]
     pub fn new() -> Self {
-        Self { bindings: HashMap::new() }
+        Self {
+            bindings: HashMap::new(),
+        }
     }
 
     /// Bind a key combination to an action.
@@ -329,14 +336,20 @@ mod tests {
             // `awase::Key::from_name`, which this path does not call. Through
             // `KeyCombo` they are kept verbatim and bind/look up correctly —
             // and, critically, stay DISTINCT from one another.
-            let exotic = ["!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "f21", "f35"];
+            let exotic = [
+                "!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "f21", "f35",
+            ];
             let mut km = KeyMap::new();
             for (i, n) in exotic.iter().enumerate() {
                 km.bind(KeyCombo::key(n), i);
             }
             assert_eq!(km.len(), exotic.len(), "no two collapsed into one");
             for (i, n) in exotic.iter().enumerate() {
-                assert_eq!(km.lookup(&KeyCombo::key(n)), Some(&i), "{n} did not round-trip");
+                assert_eq!(
+                    km.lookup(&KeyCombo::key(n)),
+                    Some(&i),
+                    "{n} did not round-trip"
+                );
             }
         }
 

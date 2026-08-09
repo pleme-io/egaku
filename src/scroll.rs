@@ -135,7 +135,11 @@ impl ScrollKinetics {
     /// A kinetics value at rest — zero velocity, no pending fraction.
     #[must_use]
     pub const fn at_rest() -> Self {
-        Self { velocity: 0.0, residual: 0.0, sustained: false }
+        Self {
+            velocity: 0.0,
+            residual: 0.0,
+            sustained: false,
+        }
     }
 
     /// Whether the kinetics is fully at rest (no velocity, no pending
@@ -272,7 +276,11 @@ pub struct ScrollView {
 impl ScrollView {
     #[must_use]
     pub fn new(content_height: f32, viewport_height: f32) -> Self {
-        Self { offset: 0.0, content_height, viewport_height }
+        Self {
+            offset: 0.0,
+            content_height,
+            viewport_height,
+        }
     }
 
     /// Scroll by a delta, clamping to valid range.
@@ -315,11 +323,7 @@ impl ScrollView {
     #[must_use]
     pub fn scroll_fraction(&self) -> f32 {
         let max = self.max_scroll();
-        if max <= 0.0 {
-            0.0
-        } else {
-            self.offset / max
-        }
+        if max <= 0.0 { 0.0 } else { self.offset / max }
     }
 
     fn clamp(&mut self) {
@@ -514,7 +518,11 @@ mod tests {
             tick(&mut k, DT);
         }
         assert!(k.is_sustained());
-        assert_eq!(k.velocity(), -500.0, "sustained velocity is held, not decayed");
+        assert_eq!(
+            k.velocity(),
+            -500.0,
+            "sustained velocity is held, not decayed"
+        );
         k.stop();
         assert!(!k.is_active());
         assert!(!k.is_sustained());
@@ -647,6 +655,9 @@ mod tests {
         }
         assert!(k.at_rest_now(), "default coast must reach a clean rest");
         // ~0.7s coast at 60Hz ≈ 42 frames; a generous ceiling proves it.
-        assert!(frames < 120, "default coast took {frames} frames (too long)");
+        assert!(
+            frames < 120,
+            "default coast took {frames} frames (too long)"
+        );
     }
 }

@@ -36,7 +36,10 @@ pub struct Span {
 impl Span {
     #[must_use]
     pub fn new(text: impl Into<String>, style: u8) -> Self {
-        Self { text: text.into(), style }
+        Self {
+            text: text.into(),
+            style,
+        }
     }
     /// Style 0 — the caller's default.
     #[must_use]
@@ -190,7 +193,10 @@ impl TextView {
     /// The rows a renderer should draw right now.
     #[must_use]
     pub fn visible(&self) -> &[WrappedLine] {
-        let end = self.offset.saturating_add(self.height).min(self.wrapped.len());
+        let end = self
+            .offset
+            .saturating_add(self.height)
+            .min(self.wrapped.len());
         &self.wrapped[self.offset.min(self.wrapped.len())..end]
     }
 
@@ -294,7 +300,10 @@ impl TextView {
 /// size yet should show something.
 fn wrap_spans(spans: &[Span], width: usize, source_line: usize, out: &mut Vec<WrappedLine>) {
     if width == 0 {
-        out.push(WrappedLine { spans: spans.to_vec(), source_line });
+        out.push(WrappedLine {
+            spans: spans.to_vec(),
+            source_line,
+        });
         return;
     }
 
@@ -314,7 +323,10 @@ fn wrap_spans(spans: &[Span], width: usize, source_line: usize, out: &mut Vec<Wr
                 if !chunk.is_empty() {
                     current.push(Span::new(std::mem::take(&mut chunk), span.style));
                 }
-                out.push(WrappedLine { spans: std::mem::take(&mut current), source_line });
+                out.push(WrappedLine {
+                    spans: std::mem::take(&mut current),
+                    source_line,
+                });
                 used = 0;
             }
             chunk.push_str(g);
@@ -328,7 +340,10 @@ fn wrap_spans(spans: &[Span], width: usize, source_line: usize, out: &mut Vec<Wr
     // An empty logical line still occupies one visual row — dropping it
     // would silently close the paragraph gaps in a PR body.
     if !current.is_empty() || out.last().map(|w| w.source_line) != Some(source_line) {
-        out.push(WrappedLine { spans: current, source_line });
+        out.push(WrappedLine {
+            spans: current,
+            source_line,
+        });
     }
 }
 
@@ -380,7 +395,11 @@ mod tests {
         //  and a two-row second line maps both of its rows back to line 1
         let v2 = TextView::from_text("abcdefghij\nshort", 4, 10);
         let srcs2: Vec<usize> = v2.wrapped().iter().map(WrappedLine::source_line).collect();
-        assert_eq!(srcs2, vec![0, 0, 0, 1, 1], "\"short\" is 5 wide — it wraps too");
+        assert_eq!(
+            srcs2,
+            vec![0, 0, 0, 1, 1],
+            "\"short\" is 5 wide — it wraps too"
+        );
     }
 
     /// Wrapping splits a span at the wrap point and BOTH halves keep the
@@ -417,7 +436,11 @@ mod tests {
     fn wrapping_measures_display_columns_not_grapheme_count() {
         let v = TextView::from_text("日本語", 4, 10);
         assert_eq!(v.total_rows(), 2, "3 graphemes / 6 cols does not fit in 4");
-        assert_eq!(v.wrapped()[0].text(), "日本", "two wide chars fill 4 columns");
+        assert_eq!(
+            v.wrapped()[0].text(),
+            "日本",
+            "two wide chars fill 4 columns"
+        );
         assert_eq!(v.wrapped()[0].width(), 4);
         assert_eq!(v.wrapped()[1].text(), "語");
     }

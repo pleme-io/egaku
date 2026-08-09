@@ -8,7 +8,10 @@ pub struct FocusManager {
 impl FocusManager {
     #[must_use]
     pub fn new(widgets: Vec<String>) -> Self {
-        Self { widgets, focused: 0 }
+        Self {
+            widgets,
+            focused: 0,
+        }
     }
 
     /// Advance focus to the next widget, wrapping around.

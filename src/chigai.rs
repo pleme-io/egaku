@@ -91,7 +91,9 @@ impl Default for DiffOptions {
     /// that two unrelated 50k-line files fall back in milliseconds instead of
     /// spending seconds proving they differ everywhere.
     fn default() -> Self {
-        Self { max_cost: Some(4096) }
+        Self {
+            max_cost: Some(4096),
+        }
     }
 }
 
@@ -127,8 +129,16 @@ impl Diff {
     /// `(inserted, deleted)`.
     #[must_use]
     pub fn stats(&self) -> (usize, usize) {
-        let i = self.changes.iter().filter(|c| matches!(c, Change::Insert { .. })).count();
-        let d = self.changes.iter().filter(|c| matches!(c, Change::Delete { .. })).count();
+        let i = self
+            .changes
+            .iter()
+            .filter(|c| matches!(c, Change::Insert { .. }))
+            .count();
+        let d = self
+            .changes
+            .iter()
+            .filter(|c| matches!(c, Change::Delete { .. }))
+            .count();
         (i, d)
     }
 }
@@ -150,7 +160,8 @@ pub fn diff<T: PartialEq>(old: &[T], new: &[T], opts: DiffOptions) -> Diff {
         pre += 1;
     }
     let mut suf = 0;
-    while suf < old.len() - pre && suf < new.len() - pre
+    while suf < old.len() - pre
+        && suf < new.len() - pre
         && old[old.len() - 1 - suf] == new[new.len() - 1 - suf]
     {
         suf += 1;
@@ -158,7 +169,10 @@ pub fn diff<T: PartialEq>(old: &[T], new: &[T], opts: DiffOptions) -> Diff {
 
     let mut changes: Vec<Change> = Vec::new();
     for i in 0..pre {
-        changes.push(Change::Equal { old_index: i, new_index: i });
+        changes.push(Change::Equal {
+            old_index: i,
+            new_index: i,
+        });
     }
 
     let om = &old[pre..old.len() - suf];
@@ -204,10 +218,24 @@ fn myers<T: PartialEq>(
         return (Vec::new(), true);
     }
     if n == 0 {
-        return ((0..m).map(|j| Change::Insert { new_index: offset + j }).collect(), true);
+        return (
+            (0..m)
+                .map(|j| Change::Insert {
+                    new_index: offset + j,
+                })
+                .collect(),
+            true,
+        );
     }
     if m == 0 {
-        return ((0..n).map(|i| Change::Delete { old_index: offset + i }).collect(), true);
+        return (
+            (0..n)
+                .map(|i| Change::Delete {
+                    old_index: offset + i,
+                })
+                .collect(),
+            true,
+        );
     }
 
     let max = max_cost.unwrap_or(n + m).min(n + m);
@@ -224,9 +252,7 @@ fn myers<T: PartialEq>(
         while k <= dd {
             let idx = (center + k) as usize;
             // Choose the move that reaches furthest right.
-            let mut x = if k == -dd
-                || (k != dd && v[idx - 1] < v[idx + 1])
-            {
+            let mut x = if k == -dd || (k != dd && v[idx - 1] < v[idx + 1]) {
                 v[idx + 1] // down = insertion
             } else {
                 v[idx - 1] + 1 // right = deletion
@@ -247,8 +273,14 @@ fn myers<T: PartialEq>(
 
     // Cost bound hit. A whole-block replace is correct and obviously
     // non-minimal — which `is_minimal() == false` tells the caller.
-    let mut out: Vec<Change> = (0..n).map(|i| Change::Delete { old_index: offset + i }).collect();
-    out.extend((0..m).map(|j| Change::Insert { new_index: offset + j }));
+    let mut out: Vec<Change> = (0..n)
+        .map(|i| Change::Delete {
+            old_index: offset + i,
+        })
+        .collect();
+    out.extend((0..m).map(|j| Change::Insert {
+        new_index: offset + j,
+    }));
     (out, false)
 }
 
@@ -284,15 +316,22 @@ fn backtrack<T: PartialEq>(
         while x > prev_x && y > prev_y {
             x -= 1;
             y -= 1;
-            out.push(Change::Equal { old_index: offset + x, new_index: offset + y });
+            out.push(Change::Equal {
+                old_index: offset + x,
+                new_index: offset + y,
+            });
         }
         if d > 0 {
             if x == prev_x {
                 y -= 1;
-                out.push(Change::Insert { new_index: offset + y });
+                out.push(Change::Insert {
+                    new_index: offset + y,
+                });
             } else {
                 x -= 1;
-                out.push(Change::Delete { old_index: offset + x });
+                out.push(Change::Delete {
+                    old_index: offset + x,
+                });
             }
         }
     }
@@ -323,7 +362,10 @@ mod tests {
                 Change::Delete { .. } => {}
             }
         }
-        assert_eq!(got, n, "script did not reconstruct new from old ({old:?} → {new:?})");
+        assert_eq!(
+            got, n,
+            "script did not reconstruct new from old ({old:?} → {new:?})"
+        );
 
         // …and the delete/equal side must reconstruct `old`.
         let mut back: Vec<&str> = Vec::new();
@@ -453,7 +495,10 @@ mod tests {
         let (d, o, n) = diff_lines("keep\nold", "keep\nnew");
         for c in d.changes() {
             match *c {
-                Change::Equal { old_index, new_index } => {
+                Change::Equal {
+                    old_index,
+                    new_index,
+                } => {
                     assert_eq!(o[old_index], n[new_index]);
                 }
                 Change::Delete { old_index } => assert_eq!(o[old_index], "old"),
