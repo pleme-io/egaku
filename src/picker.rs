@@ -22,11 +22,17 @@
 //! * [`crate::TextInput`] owns the query line — cursor, grapheme-aware
 //!   insert/backspace, the whole edit surface. The picker does not
 //!   re-derive text editing.
-//! * The fuzzy scorer ([`fuzzy_score`]) is the same subsequence-fuzzy
-//!   ranking mado's praca uses (contiguity + word-boundary bonuses,
-//!   light length penalty) — copied here (egaku is a leaf widget crate
-//!   and cannot depend on praca) so a frecency-ranked picker and a plain
-//!   fuzzy picker share one ranking.
+//! * The fuzzy scorer ([`fuzzy_score`]) delegates to `shibori`, the fleet
+//!   scoring contract. It used to be a COPY, and the reason recorded here
+//!   was sound: egaku is a leaf widget crate and cannot depend on praça,
+//!   which lives in tear. shibori is that algorithm lifted out of praça
+//!   into a leaf crate precisely so the constraint stops forcing a copy —
+//!   both now call one implementation instead of drifting.
+//!
+//!   The copy HAD drifted, which is the argument for having done it: it
+//!   was greedy where praça is a maximum-scoring DP alignment, always
+//!   lowercase where praça is smart-case, and single-term where praça
+//!   splits on whitespace. All three are now praça's contract.
 //! * The wrapping up/down nav mirrors mado's `SessionPickerState`.
 //!
 //! ## Generic over the item key
@@ -576,39 +582,7 @@ impl PickerState {
 /// here.
 #[must_use]
 pub fn fuzzy_score(needle: &str, haystack: &str) -> Option<i32> {
-    let needle = needle.to_lowercase();
-    let haystack_lc = haystack.to_lowercase();
-    let n: Vec<char> = needle.chars().collect();
-    if n.is_empty() {
-        return Some(0);
-    }
-    let hay: Vec<char> = haystack_lc.chars().collect();
-
-    let is_sep = |c: char| matches!(c, '/' | '-' | '_' | '.' | ' ');
-
-    let mut ni = 0usize;
-    let mut score = 0i32;
-    let mut run = 0i32;
-    for (hi, &hc) in hay.iter().enumerate() {
-        if ni < n.len() && hc == n[ni] {
-            run += 1;
-            score += run; // contiguity reward grows within a run
-            if hi == 0 {
-                score += 8; // start-of-string bonus
-            } else if is_sep(hay[hi - 1]) {
-                score += 6; // word-boundary bonus
-            }
-            ni += 1;
-        } else {
-            run = 0;
-        }
-    }
-    if ni == n.len() {
-        // light length penalty: tighter haystack wins ties.
-        Some(score - (i32::try_from(hay.len()).unwrap_or(i32::MAX) / 16))
-    } else {
-        None
-    }
+    shibori::fuzzy_score(needle, haystack, shibori::Policy::smart())
 }
 
 #[cfg(test)]
@@ -990,9 +964,57 @@ mod tests {
         assert_eq!(fuzzy_score("", "anything"), Some(0));
     }
 
+    /// Smart-case, not blanket case-insensitivity — the contract the doc
+    /// comment above has always CLAIMED ("mirrors praça's contract") while the
+    /// old private scorer lowercased everything unconditionally.
+    ///
+    /// A lowercase needle stays insensitive, so nothing a user typed casually
+    /// changes. Typing a capital is an explicit narrowing signal and is now
+    /// honoured, which is what fzf, ripgrep, vim and praça all do.
     #[test]
-    fn fuzzy_is_case_insensitive() {
-        assert!(fuzzy_score("GIT", "git commit").is_some());
+    fn fuzzy_is_smart_case() {
+        // all-lowercase term: case-insensitive, matches regardless
+        assert!(fuzzy_score("git", "GIT commit").is_some());
+        // uppercase in the term: case-SENSITIVE, so it must match exactly
+        assert!(fuzzy_score("GIT", "GIT commit").is_some());
+        assert!(fuzzy_score("GIT", "git commit").is_none());
+    }
+
+    /// Whitespace splits terms, and every term must match — so a two-word
+    /// query finds an item whose words are neither adjacent nor in order.
+    /// The old single-pass scorer treated the space as a literal character.
+    #[test]
+    fn fuzzy_terms_are_whitespace_split_and_unordered() {
+        assert!(fuzzy_score("commit git", "git commit").is_some());
+        assert!(fuzzy_score("git absent", "git commit").is_none());
+    }
+
+    /// Optimal alignment, not greedy first-match.
+    ///
+    /// Both haystacks are the same length, so the length penalty cancels and
+    /// only the alignment differs. `xaxab` has a SECOND `a` that sits right
+    /// before the `b`; reaching it means declining the first one. The old
+    /// single-pass scorer consumed `a` at index 1 the moment it saw it and
+    /// scored both of these identically (2). Skipping ahead to the contiguous
+    /// pair is worth +4, and only a scorer that can decline a match finds it.
+    #[test]
+    fn fuzzy_declines_an_early_match_for_a_better_alignment() {
+        let contiguous = fuzzy_score("ab", "xaxab").unwrap();
+        let spread = fuzzy_score("ab", "xaxxb").unwrap();
+        assert!(
+            contiguous > spread,
+            "contiguous {contiguous} should beat spread {spread}"
+        );
+    }
+
+    /// The counterpart, and the reason the test above needed care: contiguity
+    /// does NOT always win. Start-of-string is worth +8 against contiguity's
+    /// +4, so in `axxxab` keeping `a` at index 0 outscores the contiguous
+    /// `ab` at the end, and the two alignments below tie deliberately. The
+    /// scorer maximises the TOTAL, not any single bonus.
+    #[test]
+    fn fuzzy_start_bonus_can_outweigh_contiguity() {
+        assert_eq!(fuzzy_score("ab", "axxxab"), fuzzy_score("ab", "axxxxb"));
     }
 
     #[test]

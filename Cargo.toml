@@ -18,6 +18,11 @@ missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 
 [dependencies]
+# shibori — the fleet fuzzy-scoring contract, extracted from praça. egaku
+# carried its own GREEDY single-pass scorer under a doc comment claiming it
+# "mirrors praça's contract"; it did not (greedy alignment, always-lowercase,
+# no whitespace terms). Delegating makes the claim true.
+shibori = "0.1"
 # The fleet's chord vocabulary. `KeyCombo` canonicalises through it so two
 # spellings of one chord are one HashMap key — see the type's docs for the
 # three places the fleet independently hit the silent-miss this closes.

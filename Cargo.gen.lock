@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "23a1c9fd7707d9c072d0e26818e1160db444ae00c569fd5d81cdb6d5f777a95a",
+  "cargo_lock_sha256": "5313ccb822b30a79a0dd04959a266ce95270cbd8592ebde5a724b463d39ea5f7",
   "manifest_sha256": {
-    "Cargo.toml": "f86c5b454cf3c99c5c1bb4dd4bb04e36a484934f7013b14ee1f1abcbd7452d1a"
+    "Cargo.toml": "f3368d9d907a5ee3e7cb112056fc0b8116ec42ff29259a8dd28e7bf5880e8cb4"
   },
   "target_resolves": {
     "base": {
@@ -75,6 +75,16 @@
             "features": [
               "derive"
             ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "shibori",
+            "package_key": "shibori-0.1.1",
+            "kind": "normal",
+            "features": [],
             "uses_default_features": true,
             "optional": false,
             "target": null,
@@ -477,6 +487,11 @@
           "default",
           "std"
         ]
+      },
+      "shibori-0.1.1": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
       },
       "syn-2.0.119": {
         "runtime_dependencies": [
@@ -1499,6 +1514,9 @@
     "serde_json-1.0.151": {
       "edition": "2021",
       "build_script": "build.rs"
+    },
+    "shibori-0.1.1": {
+      "edition": "2024"
     },
     "syn-2.0.119": {
       "edition": "2021"

@@ -32,6 +32,7 @@ dependencies = [
  "awase",
  "serde",
  "serde_json",
+ "shibori",
  "tempfile",
  "thiserror",
  "tracing",
@@ -181,6 +182,12 @@ dependencies = [
  "serde_core",
  "zmij",
 ]
+
+[[package]]
+name = "shibori"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5fb3ed7c462ed1f055d1db17434f2ceaffdd4a7dd6d633328cc1493e9423f40"
 
 [[package]]
 name = "syn"
