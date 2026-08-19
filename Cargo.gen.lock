@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "c06e76c7e97a9d9ee6eb447d73e47243a318f8ea985032a16ff628c0242ed169",
+  "cargo_lock_sha256": "06f2c97ed86dd7d3fc646338cb723ac1854e8f3ccc6ae595d02d32dfbadb9407",
   "manifest_sha256": {
-    "Cargo.toml": "fd7a9aed9a541efd51e3255a33bb6ef473de4124f7bde3b37295f69b01177bad"
+    "Cargo.toml": "a23f4cec5b0fbb01733726d93e651272c684b3b40f4ad7fad1c1c57ead89d078"
   },
   "target_resolves": {
     "base": {
@@ -22,7 +22,7 @@
           },
           {
             "name": "thiserror",
-            "package_key": "thiserror-2.0.20",
+            "package_key": "thiserror-2.0.19",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -92,7 +92,7 @@
           },
           {
             "name": "thiserror",
-            "package_key": "thiserror-2.0.20",
+            "package_key": "thiserror-2.0.19",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -123,6 +123,16 @@
           {
             "name": "unicode_width",
             "package_key": "unicode-width-0.2.2",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "zeroize",
+            "package_key": "zeroize-1.9.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -633,11 +643,11 @@
           "getrandom"
         ]
       },
-      "thiserror-2.0.20": {
+      "thiserror-2.0.19": {
         "runtime_dependencies": [
           {
             "name": "thiserror_impl",
-            "package_key": "thiserror-impl-2.0.20",
+            "package_key": "thiserror-impl-2.0.19",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -652,7 +662,7 @@
           "std"
         ]
       },
-      "thiserror-impl-2.0.20": {
+      "thiserror-impl-2.0.19": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -807,6 +817,14 @@
         "build_dependencies": [],
         "features": [
           "cjk",
+          "default"
+        ]
+      },
+      "zeroize-1.9.0": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": [
+          "alloc",
           "default"
         ]
       },
@@ -1527,11 +1545,11 @@
     "tempfile-3.27.0": {
       "edition": "2021"
     },
-    "thiserror-2.0.20": {
+    "thiserror-2.0.19": {
       "edition": "2021",
       "build_script": "build.rs"
     },
-    "thiserror-impl-2.0.20": {
+    "thiserror-impl-2.0.19": {
       "edition": "2021",
       "proc_macro": true
     },
@@ -1553,6 +1571,9 @@
     },
     "unicode-width-0.2.2": {
       "edition": "2021"
+    },
+    "zeroize-1.9.0": {
+      "edition": "2024"
     },
     "zmij-1.0.23": {
       "edition": "2021",

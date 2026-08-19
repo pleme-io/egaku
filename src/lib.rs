@@ -43,6 +43,7 @@ pub mod list;
 pub mod modal;
 pub mod picker;
 pub mod scroll;
+pub mod secret;
 pub mod selectable;
 pub mod split;
 pub mod table;
@@ -63,6 +64,7 @@ pub use picker::{
     FuzzyPicker, PickerEffect, PickerEvent, PickerItem, PickerState, PickerStep, PickerView,
     QueryGuard,
 };
+pub use secret::SecretInput;
 pub use scroll::{ScrollKinetics, ScrollKineticsConfig, ScrollView};
 pub use selectable::Selectable;
 pub use split::{Orientation, SplitPane};

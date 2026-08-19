@@ -31,6 +31,10 @@ awase = "0.1"
 serde = { version = "1", features = ["derive"] }
 tracing = "0.1"
 thiserror = "2"
+# zeroize — SecretInput's buffer zeroes on drop. The fleet already uses
+# `Zeroizing<String>` for this in cofre; same crate, same discipline, so a
+# secret in a widget is handled exactly like a secret in the secret store.
+zeroize = "1"
 unicode-segmentation = "1.12"
 unicode-width = "0.2"
 
