@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "06f2c97ed86dd7d3fc646338cb723ac1854e8f3ccc6ae595d02d32dfbadb9407",
+  "cargo_lock_sha256": "a31fb9b2d9e345d4a99d1a2e31514f94725fc7039df1ada411a17e1e80e5c1ca",
   "manifest_sha256": {
-    "Cargo.toml": "a23f4cec5b0fbb01733726d93e651272c684b3b40f4ad7fad1c1c57ead89d078"
+    "Cargo.toml": "1c55dbe56c44440b3f79f071daa4db1c3617da45d48a346a5a689519e72778c9"
   },
   "target_resolves": {
     "base": {
@@ -22,7 +22,7 @@
           },
           {
             "name": "thiserror",
-            "package_key": "thiserror-2.0.19",
+            "package_key": "thiserror-2.0.20",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -56,7 +56,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "egaku-0.1.13": {
+      "egaku-0.1.14": {
         "runtime_dependencies": [
           {
             "name": "awase",
@@ -92,7 +92,7 @@
           },
           {
             "name": "thiserror",
-            "package_key": "thiserror-2.0.19",
+            "package_key": "thiserror-2.0.20",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -643,11 +643,11 @@
           "getrandom"
         ]
       },
-      "thiserror-2.0.19": {
+      "thiserror-2.0.20": {
         "runtime_dependencies": [
           {
             "name": "thiserror_impl",
-            "package_key": "thiserror-impl-2.0.19",
+            "package_key": "thiserror-impl-2.0.20",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -662,7 +662,7 @@
           "std"
         ]
       },
-      "thiserror-impl-2.0.19": {
+      "thiserror-impl-2.0.20": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -1469,7 +1469,7 @@
     "cfg-if-1.0.4": {
       "edition": "2018"
     },
-    "egaku-0.1.13": {
+    "egaku-0.1.14": {
       "edition": "2024",
       "lib_target": {
         "name": "egaku",
@@ -1545,11 +1545,11 @@
     "tempfile-3.27.0": {
       "edition": "2021"
     },
-    "thiserror-2.0.19": {
+    "thiserror-2.0.20": {
       "edition": "2021",
       "build_script": "build.rs"
     },
-    "thiserror-impl-2.0.19": {
+    "thiserror-impl-2.0.20": {
       "edition": "2021",
       "proc_macro": true
     },
