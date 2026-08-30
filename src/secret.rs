@@ -264,7 +264,10 @@ impl SecretInput {
     #[must_use]
     pub fn take(&mut self) -> Zeroizing<String> {
         self.cursor = 0;
-        core::mem::replace(&mut self.buf, Zeroizing::new(String::with_capacity(DEFAULT_CAPACITY)))
+        core::mem::replace(
+            &mut self.buf,
+            Zeroizing::new(String::with_capacity(DEFAULT_CAPACITY)),
+        )
     }
 }
 
@@ -334,8 +337,15 @@ mod tests {
         let mut input = SecretInput::new();
         input.insert_char('e');
         input.insert_char('\u{0301}');
-        assert_eq!(input.mask_len(), 1, "one visible mark must be one mask cell");
-        assert!(input.expose_secret().len() > 1, "…while still being multi-byte");
+        assert_eq!(
+            input.mask_len(),
+            1,
+            "one visible mark must be one mask cell"
+        );
+        assert!(
+            input.expose_secret().len() > 1,
+            "…while still being multi-byte"
+        );
     }
 
     #[test]
@@ -348,7 +358,11 @@ mod tests {
         input.backspace();
         assert_eq!(input.mask_len(), 1);
         input.backspace();
-        assert_eq!(input.mask_len(), 0, "the combining sequence went as one unit");
+        assert_eq!(
+            input.mask_len(),
+            0,
+            "the combining sequence went as one unit"
+        );
         assert!(input.is_empty());
     }
 
@@ -380,11 +394,19 @@ mod tests {
         input.move_home();
         assert_eq!(input.cursor_cell(), 0);
         input.move_left();
-        assert_eq!(input.cursor_cell(), 0, "left at the start is a no-op, not a panic");
+        assert_eq!(
+            input.cursor_cell(),
+            0,
+            "left at the start is a no-op, not a panic"
+        );
         input.move_end();
         assert_eq!(input.cursor_cell(), 3);
         input.move_right();
-        assert_eq!(input.cursor_cell(), 3, "right at the end is a no-op, not a panic");
+        assert_eq!(
+            input.cursor_cell(),
+            3,
+            "right at the end is a no-op, not a panic"
+        );
     }
 
     #[test]
@@ -412,7 +434,11 @@ mod tests {
         let mut input = SecretInput::new();
         assert!(!input.is_focused());
         input.insert_char('x');
-        assert_eq!(input.mask_len(), 1, "editing an unfocused input still works");
+        assert_eq!(
+            input.mask_len(),
+            1,
+            "editing an unfocused input still works"
+        );
         input.set_focused(true);
         assert!(input.is_focused());
     }

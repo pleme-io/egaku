@@ -30,6 +30,7 @@ name = "egaku"
 version = "0.1.14"
 dependencies = [
  "awase",
+ "ishou-tokens",
  "serde",
  "serde_json",
  "shibori",
@@ -66,6 +67,27 @@ dependencies = [
  "cfg-if",
  "libc",
  "r-efi",
+]
+
+[[package]]
+name = "irodori"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c1e6ec2a36084626fdbd4dcfb8beb53d0b5f6125b4cd54a4d45abddf6ffbbb9"
+dependencies = [
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "ishou-tokens"
+version = "0.1.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38515ee06fccdfb92b0d548c3ffccbfeb2d7601c376a768acfd43aa8bb4b3634"
+dependencies = [
+ "irodori",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

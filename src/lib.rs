@@ -64,8 +64,8 @@ pub use picker::{
     FuzzyPicker, PickerEffect, PickerEvent, PickerItem, PickerState, PickerStep, PickerView,
     QueryGuard,
 };
-pub use secret::SecretInput;
 pub use scroll::{ScrollKinetics, ScrollKineticsConfig, ScrollView};
+pub use secret::SecretInput;
 pub use selectable::Selectable;
 pub use split::{Orientation, SplitPane};
 pub use table::{Column, IDENTITY_FIELD, SortKey, SortOrder, TableError, TableRow, TableView};
