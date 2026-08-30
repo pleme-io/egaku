@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "a31fb9b2d9e345d4a99d1a2e31514f94725fc7039df1ada411a17e1e80e5c1ca",
+  "cargo_lock_sha256": "590d649a01635e9b6d6617b28f981987d1b6763021b8c83fb879cb6dc1b76d8c",
   "manifest_sha256": {
-    "Cargo.toml": "1c55dbe56c44440b3f79f071daa4db1c3617da45d48a346a5a689519e72778c9"
+    "Cargo.toml": "fb1dc2b88732a9ad5000dbccca11358734675b97281ba9226d81575e6308865a"
   },
   "target_resolves": {
     "base": {
@@ -61,6 +61,16 @@
           {
             "name": "awase",
             "package_key": "awase-0.1.9",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "ishou_tokens",
+            "package_key": "ishou-tokens-0.1.14",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -286,6 +296,74 @@
         ],
         "build_dependencies": [],
         "features": []
+      },
+      "irodori-0.1.1": {
+        "runtime_dependencies": [
+          {
+            "name": "serde",
+            "package_key": "serde-1.0.229",
+            "kind": "normal",
+            "features": [
+              "derive"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "thiserror",
+            "package_key": "thiserror-2.0.20",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
+      "ishou-tokens-0.1.14": {
+        "runtime_dependencies": [
+          {
+            "name": "irodori",
+            "package_key": "irodori-0.1.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "serde",
+            "package_key": "serde-1.0.229",
+            "kind": "normal",
+            "features": [
+              "derive"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "serde_json",
+            "package_key": "serde_json-1.0.151",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "default"
+        ]
       },
       "itoa-1.0.18": {
         "runtime_dependencies": [],
@@ -1485,6 +1563,12 @@
     "getrandom-0.4.3": {
       "edition": "2024",
       "build_script": "build.rs"
+    },
+    "irodori-0.1.1": {
+      "edition": "2024"
+    },
+    "ishou-tokens-0.1.14": {
+      "edition": "2024"
     },
     "itoa-1.0.18": {
       "edition": "2021"

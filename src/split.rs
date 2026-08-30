@@ -1,5 +1,63 @@
 use crate::layout::Rect;
 
+use ishou_tokens::{Bounds, Refined};
+
+/// The unit interval, with NaN falling to a centred split.
+///
+/// ★ `Refined::new` tests for IN-range first, so NaN — which compares false
+/// against everything — lands on `default()`. That ordering is the entire NaN
+/// fix; a bounds check written as "reject if out of range" would let NaN
+/// through.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SplitRatioBounds;
+
+impl Bounds<f32> for SplitRatioBounds {
+    fn min() -> f32 {
+        0.0
+    }
+    fn max() -> f32 {
+        1.0
+    }
+    fn default() -> f32 {
+        0.5
+    }
+}
+
+/// A minimum-ratio, capped at 0.5.
+///
+/// ★ THE CAP IS THE PANIC FIX. The old code computed
+/// `ratio.clamp(min_ratio, 1.0 - min_ratio)`, and `f32::clamp` **panics** when
+/// `min > max`. Any `min_ratio > 0.5` makes `1.0 - min_ratio < min_ratio`, so
+/// `SplitPane::new(o, 0.5, 0.6)` was a reachable panic in a drawing library.
+/// Capping the minimum at 0.5 makes the inverted window unconstructible.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct MinRatioBounds;
+
+impl Bounds<f32> for MinRatioBounds {
+    fn min() -> f32 {
+        0.0
+    }
+    fn max() -> f32 {
+        0.5
+    }
+    fn default() -> f32 {
+        0.0
+    }
+}
+
+/// Refine FIRST, then narrow — the ordering is load-bearing.
+///
+/// Refining both values against static bounds removes NaN and guarantees
+/// `lo <= hi`, so the narrowing `clamp` below can no longer panic. Doing it the
+/// other way round — narrowing a raw `f32` and refining after — is exactly the
+/// old code, and preserves both defects.
+fn refine_ratio(ratio: f32, min_ratio: f32) -> f32 {
+    let min = Refined::<f32, MinRatioBounds>::new(min_ratio).get();
+    let r = Refined::<f32, SplitRatioBounds>::new(ratio).get();
+    // `min <= 0.5 <= 1.0 - min` holds by construction, so this cannot panic.
+    r.clamp(min, 1.0 - min)
+}
+
 /// Orientation of a split pane.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Orientation {
@@ -19,7 +77,7 @@ impl SplitPane {
     /// Create a new split pane with the given orientation, ratio, and minimum ratio.
     #[must_use]
     pub fn new(orientation: Orientation, ratio: f32, min_ratio: f32) -> Self {
-        let clamped = ratio.clamp(min_ratio, 1.0 - min_ratio);
+        let clamped = refine_ratio(ratio, min_ratio);
         Self {
             ratio: clamped,
             orientation,
@@ -41,7 +99,7 @@ impl SplitPane {
 
     /// Resize the split, clamping to `[min_ratio, 1.0 - min_ratio]`.
     pub fn resize(&mut self, ratio: f32) {
-        self.ratio = ratio.clamp(self.min_ratio, 1.0 - self.min_ratio);
+        self.ratio = refine_ratio(ratio, self.min_ratio);
     }
 
     /// Returns the current ratio.
@@ -174,5 +232,54 @@ mod tests {
         assert!((first.width + second.width - bounds.width).abs() < f32::EPSILON);
         // Second starts where first ends
         assert!((second.x - (first.x + first.width)).abs() < f32::EPSILON);
+    }
+
+    /// ★ THE NaN DEFECT. `f32::NAN.clamp(0.1, 0.9)` returns NaN, and the old
+    /// `new` clamped exactly that way — so a NaN ratio flowed into
+    /// `bounds.width * self.ratio` and every downstream rect became NaN. A
+    /// NaN width does not panic and does not draw; it silently renders
+    /// nothing, which is the worst failure shape available.
+    #[test]
+    fn a_nan_ratio_cannot_reach_geometry() {
+        let sp = SplitPane::new(Orientation::Horizontal, f32::NAN, 0.1);
+        assert!(sp.ratio().is_finite(), "NaN survived into the ratio");
+        assert_eq!(sp.ratio(), 0.5, "NaN should land on a centred split");
+
+        let mut sp = SplitPane::new(Orientation::Vertical, 0.5, 0.1);
+        sp.resize(f32::NAN);
+        assert!(sp.ratio().is_finite(), "NaN survived a resize");
+    }
+
+    /// ★ THE PANIC DEFECT. `f32::clamp` PANICS when `min > max`, and the old
+    /// code computed `ratio.clamp(min_ratio, 1.0 - min_ratio)` — so any
+    /// `min_ratio > 0.5` inverted the window and took the process down. A
+    /// drawing library panicking on a plausible argument is not a bad value,
+    /// it is a crash.
+    #[test]
+    fn a_min_ratio_above_one_half_does_not_panic() {
+        let sp = SplitPane::new(Orientation::Horizontal, 0.5, 0.6);
+        assert!(sp.ratio().is_finite());
+        let sp = SplitPane::new(Orientation::Horizontal, 0.5, 42.0);
+        assert!(sp.ratio().is_finite());
+    }
+
+    /// A NaN minimum is the other `clamp` panic arm (`clamp(_, NaN, NaN)`).
+    #[test]
+    fn a_nan_min_ratio_does_not_panic() {
+        let sp = SplitPane::new(Orientation::Vertical, 0.5, f32::NAN);
+        assert!(sp.ratio().is_finite());
+    }
+
+    /// The refinement must not disturb ordinary values — a guard that changes
+    /// correct inputs has traded one defect for another.
+    #[test]
+    fn ordinary_ratios_are_untouched() {
+        let sp = SplitPane::new(Orientation::Horizontal, 0.25, 0.1);
+        assert!((sp.ratio() - 0.25).abs() < f32::EPSILON);
+        let sp = SplitPane::new(Orientation::Horizontal, 0.05, 0.1);
+        assert!(
+            (sp.ratio() - 0.1).abs() < f32::EPSILON,
+            "still narrows to min"
+        );
     }
 }

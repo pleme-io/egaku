@@ -18,6 +18,9 @@ missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 
 [dependencies]
+# ★ For `Refined<f32, B>` — see `split.rs`. egaku's split ratios were clamped
+# with bare `f32::clamp`, which propagates NaN and PANICS when min > max.
+ishou-tokens = "0.1"
 # shibori — the fleet fuzzy-scoring contract, extracted from praça. egaku
 # carried its own GREEDY single-pass scorer under a doc comment claiming it
 # "mirrors praça's contract"; it did not (greedy alignment, always-lowercase,
