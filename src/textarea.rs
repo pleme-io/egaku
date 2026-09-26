@@ -29,7 +29,53 @@
 //! absence is felt immediately; it needs one remembered value that ordinary
 //! horizontal movement resets.
 
+//!
+//! # Readline editing is part of the buffer, not of each app
+//!
+//! Kill/yank, word motion and undo are the editing vocabulary every terminal
+//! user already has in their fingers (bash, zsh, Claude Code, emacs). They
+//! live here — once — so every fleet TUI gets the same semantics:
+//!
+//! - **Two word definitions, on purpose.** `Alt-B/F/D` move over runs of
+//!   letters and digits; `Ctrl-W` kills back to *whitespace*, so one press
+//!   removes a whole `src/path/to/file` or `--flag=value`.
+//! - **Kill ring.** Every kill pushes an entry (bounded); `yank` inserts
+//!   the newest and `yank_pop` — only valid right after a yank — swaps the
+//!   yanked text for the next older entry.
+//! - **Undo** restores text *and* cursor. Consecutive typed characters in
+//!   one word coalesce into one undo step, as every editor does.
+
 use unicode_segmentation::UnicodeSegmentation;
+
+/// Kill-ring capacity — older kills fall off.
+const KILL_RING_MAX: usize = 32;
+/// Undo depth — older states fall off.
+const UNDO_MAX: usize = 256;
+
+/// One restorable buffer state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Snapshot {
+    rows: Vec<String>,
+    row: usize,
+    col: usize,
+}
+
+/// What the previous undo checkpoint was for — consecutive `Insert`s of
+/// word characters share one checkpoint.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EditKind {
+    Insert,
+    Other,
+}
+
+/// The state a yank produced, so `yank_pop` can prove nothing changed since.
+#[derive(Debug, Clone)]
+struct YankRecord {
+    before: Snapshot,
+    after: Snapshot,
+    /// Index into the kill ring (0 = newest) of the text currently yanked.
+    index: usize,
+}
 
 /// A multi-line editable buffer with a grapheme-aware `(row, col)` cursor.
 #[derive(Debug, Clone)]
@@ -41,6 +87,11 @@ pub struct TextArea {
     /// or move has invalidated it.
     desired_col: Option<usize>,
     focused: bool,
+    /// Killed text, newest last.
+    kill_ring: Vec<String>,
+    last_yank: Option<YankRecord>,
+    undo: Vec<Snapshot>,
+    last_edit: Option<EditKind>,
 }
 
 impl Default for TextArea {
@@ -58,6 +109,10 @@ impl TextArea {
             col: 0,
             desired_col: None,
             focused: false,
+            kill_ring: Vec::new(),
+            last_yank: None,
+            undo: Vec::new(),
+            last_edit: None,
         }
     }
 
@@ -73,6 +128,7 @@ impl TextArea {
     /// Replace the whole buffer. `\r\n` and `\r` normalise to `\n` so text
     /// pasted from a Windows-authored PR body does not grow stray rows.
     pub fn set_text(&mut self, s: &str) {
+        self.checkpoint(EditKind::Other);
         let normalized = s.replace("\r\n", "\n").replace('\r', "\n");
         self.rows = normalized.split('\n').map(str::to_owned).collect();
         if self.rows.is_empty() {
@@ -132,6 +188,13 @@ impl TextArea {
             self.insert_newline();
             return;
         }
+        // A word character continues the current undo step; whitespace or
+        // punctuation starts a new one, so undo removes one word at a time.
+        if c.is_alphanumeric() && self.last_edit == Some(EditKind::Insert) {
+            self.last_yank = None;
+        } else {
+            self.checkpoint(EditKind::Insert);
+        }
         let at = self.byte_offset(self.row, self.col);
         self.rows[self.row].insert(at, c);
         self.col += 1;
@@ -146,6 +209,7 @@ impl TextArea {
 
     /// Split the current row at the cursor.
     pub fn insert_newline(&mut self) {
+        self.checkpoint(EditKind::Other);
         let at = self.byte_offset(self.row, self.col);
         let tail = self.rows[self.row].split_off(at);
         self.rows.insert(self.row + 1, tail);
@@ -158,6 +222,7 @@ impl TextArea {
     /// the cursor at the seam — where the text used to end, which is where
     /// the operator is looking.
     pub fn delete_back(&mut self) {
+        self.checkpoint(EditKind::Other);
         self.desired_col = None;
         if self.col > 0 {
             let start = self.byte_offset(self.row, self.col - 1);
@@ -177,6 +242,7 @@ impl TextArea {
 
     /// Delete forward. At end-of-row this pulls the next row up.
     pub fn delete_forward(&mut self) {
+        self.checkpoint(EditKind::Other);
         self.desired_col = None;
         let len = grapheme_count(&self.rows[self.row]);
         if self.col < len {
@@ -193,6 +259,7 @@ impl TextArea {
 
     /// Clear to the initial state — one empty row, cursor at origin.
     pub fn clear(&mut self) {
+        self.checkpoint(EditKind::Other);
         self.rows = vec![String::new()];
         self.row = 0;
         self.col = 0;
@@ -269,6 +336,245 @@ impl TextArea {
         self.desired_col = None;
     }
 
+    /// True when the cursor is on the first row — where `Up` stops moving
+    /// the cursor and starts walking history.
+    #[must_use]
+    pub fn on_first_row(&self) -> bool {
+        self.row == 0
+    }
+
+    /// True when the cursor is on the last row — where `Down` walks history.
+    #[must_use]
+    pub fn on_last_row(&self) -> bool {
+        self.row + 1 == self.rows.len()
+    }
+
+    // ── word motion (Alt-B / Alt-F) ────────────────────────────────
+
+    /// Back to the start of the previous run of letters/digits, crossing
+    /// row boundaries.
+    pub fn move_word_left(&mut self) {
+        self.desired_col = None;
+        self.last_edit = None;
+        let (row, col) = self.word_left_of(self.row, self.col, is_word);
+        self.row = row;
+        self.col = col;
+    }
+
+    /// Forward to the end of the next run of letters/digits.
+    pub fn move_word_right(&mut self) {
+        self.desired_col = None;
+        self.last_edit = None;
+        let (row, col) = self.word_right_of(self.row, self.col);
+        self.row = row;
+        self.col = col;
+    }
+
+    // ── kill / yank (Ctrl-K/U/W, Alt-D, Ctrl-Y, Alt-Y) ─────────────
+
+    /// `Ctrl-K`: kill to the end of the row. At the end of a row, kill the
+    /// newline instead (joining the next row up).
+    pub fn kill_to_row_end(&mut self) {
+        let len = grapheme_count(&self.rows[self.row]);
+        if self.col < len {
+            self.kill_span((self.row, self.col), (self.row, len));
+        } else if self.row + 1 < self.rows.len() {
+            self.kill_span((self.row, self.col), (self.row + 1, 0));
+        }
+    }
+
+    /// `Ctrl-U`: kill to the start of the row. At column 0, kill the
+    /// newline before it, so repeated presses keep eating upward.
+    pub fn kill_to_row_start(&mut self) {
+        if self.col > 0 {
+            self.kill_span((self.row, 0), (self.row, self.col));
+        } else if self.row > 0 {
+            let prev_len = grapheme_count(&self.rows[self.row - 1]);
+            self.kill_span((self.row - 1, prev_len), (self.row, 0));
+        }
+    }
+
+    /// `Ctrl-W`: kill back to whitespace — a whole path or flag per press.
+    pub fn kill_word_back(&mut self) {
+        let start = self.word_left_of(self.row, self.col, |g| !is_space(g));
+        if start != (self.row, self.col) {
+            self.kill_span(start, (self.row, self.col));
+        }
+    }
+
+    /// `Alt-D`: kill forward to the end of the next letters/digits run.
+    pub fn kill_word_forward(&mut self) {
+        let end = self.word_right_of(self.row, self.col);
+        if end != (self.row, self.col) {
+            self.kill_span((self.row, self.col), end);
+        }
+    }
+
+    /// `Ctrl-Y`: insert the newest kill at the cursor.
+    pub fn yank(&mut self) {
+        let Some(text) = self.kill_ring.last().cloned() else { return };
+        let before = self.snapshot();
+        self.checkpoint(EditKind::Other);
+        self.insert_raw(&text);
+        self.last_yank = Some(YankRecord { before, after: self.snapshot(), index: 0 });
+    }
+
+    /// `Alt-Y` right after a yank: replace the yanked text with the next
+    /// older kill. A no-op if anything changed since the yank.
+    pub fn yank_pop(&mut self) {
+        let Some(rec) = self.last_yank.take() else { return };
+        if self.snapshot() != rec.after || self.kill_ring.len() < 2 {
+            return;
+        }
+        let index = (rec.index + 1) % self.kill_ring.len();
+        let text = self.kill_ring[self.kill_ring.len() - 1 - index].clone();
+        self.restore(rec.before.clone());
+        self.insert_raw(&text);
+        self.last_yank = Some(YankRecord { before: rec.before, after: self.snapshot(), index });
+    }
+
+    /// The kill ring, newest last — for tests and "paste history" UIs.
+    #[must_use]
+    pub fn kill_ring(&self) -> &[String] {
+        &self.kill_ring
+    }
+
+    // ── undo (Ctrl-_) ──────────────────────────────────────────────
+
+    /// Restore the previous text and cursor. Returns false when there is
+    /// nothing to undo.
+    pub fn undo(&mut self) -> bool {
+        let Some(prev) = self.undo.pop() else { return false };
+        self.restore(prev);
+        self.last_edit = None;
+        self.last_yank = None;
+        true
+    }
+
+    // ── internals ──────────────────────────────────────────────────
+
+    fn snapshot(&self) -> Snapshot {
+        Snapshot { rows: self.rows.clone(), row: self.row, col: self.col }
+    }
+
+    fn restore(&mut self, s: Snapshot) {
+        self.rows = s.rows;
+        self.row = s.row;
+        self.col = s.col;
+        self.desired_col = None;
+    }
+
+    /// Record the pre-edit state for undo, and end any yank sequence.
+    fn checkpoint(&mut self, kind: EditKind) {
+        self.last_yank = None;
+        self.undo.push(self.snapshot());
+        if self.undo.len() > UNDO_MAX {
+            self.undo.remove(0);
+        }
+        self.last_edit = Some(kind);
+    }
+
+    /// Insert text without undo/yank bookkeeping (callers checkpoint).
+    fn insert_raw(&mut self, text: &str) {
+        for c in text.chars() {
+            if c == '\n' {
+                let at = self.byte_offset(self.row, self.col);
+                let tail = self.rows[self.row].split_off(at);
+                self.rows.insert(self.row + 1, tail);
+                self.row += 1;
+                self.col = 0;
+            } else {
+                let at = self.byte_offset(self.row, self.col);
+                self.rows[self.row].insert(at, c);
+                self.col += 1;
+            }
+        }
+        self.desired_col = None;
+    }
+
+    /// Remove `[start, end)` (positions in (row, grapheme col)), push it
+    /// onto the kill ring, and leave the cursor at `start`.
+    fn kill_span(&mut self, start: (usize, usize), end: (usize, usize)) {
+        self.checkpoint(EditKind::Other);
+        let (sr, sc) = start;
+        let (er, ec) = end;
+        let sb = self.byte_offset(sr, sc);
+        let eb = self.byte_offset(er, ec);
+        let killed = if sr == er {
+            let k = self.rows[sr][sb..eb].to_owned();
+            self.rows[sr].replace_range(sb..eb, "");
+            k
+        } else {
+            let mut k = self.rows[sr][sb..].to_owned();
+            for r in &self.rows[sr + 1..er] {
+                k.push('\n');
+                k.push_str(r);
+            }
+            k.push('\n');
+            k.push_str(&self.rows[er][..eb]);
+            let tail = self.rows[er][eb..].to_owned();
+            self.rows[sr].truncate(sb);
+            self.rows[sr].push_str(&tail);
+            self.rows.drain(sr + 1..=er);
+            k
+        };
+        self.row = sr;
+        self.col = sc;
+        self.desired_col = None;
+        if !killed.is_empty() {
+            self.kill_ring.push(killed);
+            if self.kill_ring.len() > KILL_RING_MAX {
+                self.kill_ring.remove(0);
+            }
+        }
+    }
+
+    /// Scan left from (row, col): skip non-matching graphemes, then a run
+    /// of matching ones. Crosses row starts (a row boundary is a separator).
+    fn word_left_of(&self, mut row: usize, mut col: usize, is_member: fn(&str) -> bool) -> (usize, usize) {
+        let mut seen_member = false;
+        loop {
+            if col == 0 {
+                if seen_member || row == 0 {
+                    return (row, col);
+                }
+                row -= 1;
+                col = grapheme_count(&self.rows[row]);
+                continue;
+            }
+            let g = self.rows[row].graphemes(true).nth(col - 1).unwrap_or("");
+            if is_member(g) {
+                seen_member = true;
+            } else if seen_member {
+                return (row, col);
+            }
+            col -= 1;
+        }
+    }
+
+    /// Scan right: skip non-word graphemes, then a run of word ones.
+    fn word_right_of(&self, mut row: usize, mut col: usize) -> (usize, usize) {
+        let mut seen_word = false;
+        loop {
+            let len = grapheme_count(&self.rows[row]);
+            if col >= len {
+                if seen_word || row + 1 >= self.rows.len() {
+                    return (row, col.min(len));
+                }
+                row += 1;
+                col = 0;
+                continue;
+            }
+            let g = self.rows[row].graphemes(true).nth(col).unwrap_or("");
+            if is_word(g) {
+                seen_word = true;
+            } else if seen_word {
+                return (row, col);
+            }
+            col += 1;
+        }
+    }
+
     /// Byte offset of a grapheme column within a row — the seam between the
     /// grapheme-indexed cursor and `String`'s byte-indexed operations.
     /// Saturates at the row's length so an out-of-range column can never
@@ -283,6 +589,15 @@ impl TextArea {
 
 fn grapheme_count(s: &str) -> usize {
     s.graphemes(true).count()
+}
+
+/// Letters and digits — the `Alt-B/F/D` word.
+fn is_word(g: &str) -> bool {
+    g.chars().next().is_some_and(char::is_alphanumeric)
+}
+
+fn is_space(g: &str) -> bool {
+    g.chars().all(char::is_whitespace)
 }
 
 #[cfg(test)]
@@ -499,5 +814,139 @@ mod tests {
             t.delete_back();
         }
         let _ = t.text();
+    }
+
+    // ── readline ───────────────────────────────────────────────────
+
+    #[test]
+    fn ctrl_w_kills_a_whole_path_or_flag() {
+        let mut t = TextArea::with_text("cat src/path/to/file.rs");
+        t.kill_word_back();
+        assert_eq!(t.text(), "cat ");
+        let mut f = TextArea::with_text("cargo test --features=lisp");
+        f.kill_word_back();
+        assert_eq!(f.text(), "cargo test ");
+    }
+
+    #[test]
+    fn alt_word_motion_stops_at_punctuation() {
+        let mut t = TextArea::with_text("src/path/to");
+        t.move_word_left();
+        assert_eq!(t.cursor(), (0, 9)); // before "to"
+        t.move_word_left();
+        assert_eq!(t.cursor(), (0, 4)); // before "path"
+        t.move_word_right();
+        assert_eq!(t.cursor(), (0, 8)); // after "path"
+    }
+
+    #[test]
+    fn alt_d_kills_forward_one_word() {
+        let mut t = TextArea::with_text("hello big world");
+        t.move_to_row_start();
+        t.kill_word_forward();
+        assert_eq!(t.text(), " big world");
+        assert_eq!(t.kill_ring().last().map(String::as_str), Some("hello"));
+    }
+
+    #[test]
+    fn ctrl_k_at_row_end_joins_the_next_row() {
+        let mut t = TextArea::with_text("ab\ncd");
+        t.move_to_start();
+        t.kill_to_row_end();
+        assert_eq!(t.text(), "\ncd");
+        t.kill_to_row_end();
+        assert_eq!(t.text(), "cd");
+        assert_eq!(t.kill_ring(), ["ab", "\n"]);
+    }
+
+    #[test]
+    fn ctrl_u_repeats_upward_across_rows() {
+        let mut t = TextArea::with_text("one\ntwo");
+        t.kill_to_row_start();
+        assert_eq!(t.text(), "one\n");
+        t.kill_to_row_start();
+        assert_eq!(t.text(), "one");
+        assert_eq!(t.cursor(), (0, 3));
+    }
+
+    #[test]
+    fn yank_then_yank_pop_cycles_older_kills() {
+        let mut t = TextArea::with_text("first second");
+        t.kill_word_back(); // "second"
+        t.kill_word_back(); // "first "
+        assert_eq!(t.text(), "");
+        t.yank();
+        assert_eq!(t.text(), "first ");
+        t.yank_pop();
+        assert_eq!(t.text(), "second");
+        t.yank_pop();
+        assert_eq!(t.text(), "first ");
+    }
+
+    #[test]
+    fn yank_pop_after_an_edit_is_a_no_op() {
+        let mut t = TextArea::with_text("a b");
+        t.kill_word_back();
+        t.kill_word_back();
+        t.yank();
+        t.insert_char('!');
+        let before = t.text();
+        t.yank_pop();
+        assert_eq!(t.text(), before, "yank_pop must not clobber a later edit");
+    }
+
+    #[test]
+    fn multi_row_kill_and_yank_round_trip() {
+        let mut t = TextArea::with_text("keep\nx\ny");
+        t.move_to_start();
+        t.move_to_row_end();
+        t.kill_to_row_end(); // "\n"
+        t.kill_to_row_end(); // "x"
+        assert_eq!(t.text(), "keep\ny");
+        t.yank();
+        assert_eq!(t.text(), "keepx\ny");
+    }
+
+    #[test]
+    fn undo_restores_text_and_cursor_one_word_at_a_time() {
+        let mut t = TextArea::new();
+        t.insert_str("hello world");
+        assert!(t.undo());
+        assert_eq!(t.text(), "hello");
+        assert!(t.undo());
+        assert_eq!(t.text(), "");
+        assert!(!t.undo());
+    }
+
+    #[test]
+    fn undo_reverts_a_kill() {
+        let mut t = TextArea::with_text("cat ./file");
+        t.kill_word_back();
+        assert!(t.undo());
+        assert_eq!(t.text(), "cat ./file");
+        assert_eq!(t.cursor(), (0, 10));
+    }
+
+    #[test]
+    fn history_boundaries() {
+        let mut t = TextArea::with_text("a\nb");
+        assert!(t.on_last_row() && !t.on_first_row());
+        t.move_up();
+        assert!(t.on_first_row());
+    }
+
+    #[test]
+    fn readline_ops_on_graphemes_never_panic() {
+        let mut t = TextArea::with_text("e\u{301}t\u{e9} 🎉 x/y");
+        for _ in 0..3 {
+            t.kill_word_back();
+            t.move_word_left();
+            t.kill_word_forward();
+            t.yank();
+            t.yank_pop();
+            t.kill_to_row_start();
+            t.kill_to_row_end();
+            t.undo();
+        }
     }
 }
