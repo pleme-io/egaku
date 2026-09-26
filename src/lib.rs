@@ -49,6 +49,7 @@ pub mod split;
 pub mod table;
 pub mod tabs;
 pub mod textarea;
+pub mod vt;
 pub mod textview;
 pub mod theme;
 
