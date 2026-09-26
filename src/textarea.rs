@@ -349,6 +349,86 @@ impl TextArea {
         self.row + 1 == self.rows.len()
     }
 
+    // ── row-level access (for modal engines such as unsoku) ────────
+    //
+    // A vim resolver works in byte offsets over one line of text. These
+    // expose the cursor's row in exactly that shape, so an adapter can sit a
+    // `TextTarget` over it without egaku knowing anything about vim.
+
+    /// The text of the row the cursor is on.
+    #[must_use]
+    pub fn current_row(&self) -> &str {
+        &self.rows[self.row]
+    }
+
+    /// The cursor's column as a byte offset into [`Self::current_row`].
+    #[must_use]
+    pub fn caret_byte(&self) -> usize {
+        self.byte_offset(self.row, self.col)
+    }
+
+    /// Move the cursor to byte offset `at` in the current row. An offset
+    /// inside a grapheme snaps back to that grapheme's start; past the end
+    /// clamps to the end.
+    pub fn set_caret_byte(&mut self, at: usize) {
+        let row = &self.rows[self.row];
+        self.col = row.grapheme_indices(true).take_while(|(i, _)| *i < at.min(row.len())).count();
+        if at < row.len() && !row.is_char_boundary(at) {
+            self.col = self.col.saturating_sub(1);
+        }
+        self.desired_col = None;
+        self.last_edit = None;
+    }
+
+    /// Replace a byte range of the current row. `with` may contain `\n`,
+    /// which splits the row. One undo step; the cursor lands after `with`.
+    pub fn replace_in_row(&mut self, range: std::ops::Range<usize>, with: &str) {
+        self.checkpoint(EditKind::Other);
+        let len = self.rows[self.row].len();
+        let (start, end) = (range.start.min(len), range.end.min(len));
+        self.rows[self.row].replace_range(start..end, "");
+        self.set_caret_byte(start);
+        self.insert_raw(with);
+    }
+
+    /// Remove the cursor's row entirely (vim `dd`), returning its text. The
+    /// buffer always keeps one row; the cursor moves to the row that takes
+    /// the removed one's place.
+    pub fn delete_row(&mut self) -> String {
+        self.checkpoint(EditKind::Other);
+        if self.rows.len() == 1 {
+            let text = std::mem::take(&mut self.rows[0]);
+            self.col = 0;
+            return text;
+        }
+        let text = self.rows.remove(self.row);
+        if self.row >= self.rows.len() {
+            self.row = self.rows.len() - 1;
+        }
+        self.col = 0;
+        self.desired_col = None;
+        text
+    }
+
+    /// Insert a new row below the cursor's row (vim `o` / linewise `p`)
+    /// and move the cursor to its start.
+    pub fn insert_row_below(&mut self, text: &str) {
+        self.checkpoint(EditKind::Other);
+        self.rows.insert(self.row + 1, text.to_owned());
+        self.row += 1;
+        self.col = 0;
+        self.desired_col = None;
+    }
+
+    /// Insert a new row above the cursor's row (vim `O` / linewise `P`)
+    /// and move the cursor to its start.
+    pub fn insert_row_above(&mut self, text: &str) {
+        self.checkpoint(EditKind::Other);
+        self.rows.insert(self.row, text.to_owned());
+        self.col = 0;
+        self.desired_col = None;
+    }
+
     // ── word motion (Alt-B / Alt-F) ────────────────────────────────
 
     /// Back to the start of the previous run of letters/digits, crossing
@@ -948,5 +1028,70 @@ mod tests {
             t.kill_to_row_end();
             t.undo();
         }
+    }
+
+    // ── row-level access ───────────────────────────────────────────
+
+    #[test]
+    fn caret_byte_round_trips_through_multibyte_graphemes() {
+        let mut t = TextArea::with_text("é🎉x");
+        t.move_to_row_start();
+        t.move_right();
+        t.move_right();
+        let b = t.caret_byte();
+        assert_eq!(&t.current_row()[b..], "x");
+        t.set_caret_byte(0);
+        assert_eq!(t.cursor(), (0, 0));
+        t.set_caret_byte(b);
+        assert_eq!(t.cursor(), (0, 2));
+    }
+
+    #[test]
+    fn set_caret_byte_inside_a_grapheme_snaps_to_its_start() {
+        let mut t = TextArea::with_text("a🎉b");
+        t.set_caret_byte(2); // inside the 4-byte emoji
+        assert_eq!(t.cursor(), (0, 1));
+        t.set_caret_byte(999);
+        assert_eq!(t.cursor(), (0, 3));
+    }
+
+    #[test]
+    fn replace_in_row_is_one_undo_step() {
+        let mut t = TextArea::with_text("hello world");
+        t.replace_in_row(0..5, "howdy");
+        assert_eq!(t.text(), "howdy world");
+        assert_eq!(t.caret_byte(), 5);
+        assert!(t.undo());
+        assert_eq!(t.text(), "hello world");
+    }
+
+    #[test]
+    fn replace_in_row_with_a_newline_splits() {
+        let mut t = TextArea::with_text("ab");
+        t.replace_in_row(1..1, "\n");
+        assert_eq!(t.rows(), ["a", "b"]);
+    }
+
+    #[test]
+    fn delete_row_and_linewise_insert() {
+        let mut t = TextArea::with_text("one\ntwo\nthree");
+        t.move_up();
+        assert_eq!(t.delete_row(), "two");
+        assert_eq!(t.rows(), ["one", "three"]);
+        assert_eq!(t.cursor().0, 1);
+        t.insert_row_above("two");
+        assert_eq!(t.rows(), ["one", "two", "three"]);
+        t.insert_row_below("2.5");
+        assert_eq!(t.rows(), ["one", "two", "2.5", "three"]);
+        assert_eq!(t.cursor(), (2, 0));
+    }
+
+    #[test]
+    fn delete_last_row_keeps_one_empty_row() {
+        let mut t = TextArea::with_text("only");
+        assert_eq!(t.delete_row(), "only");
+        assert!(t.is_empty());
+        assert!(t.undo());
+        assert_eq!(t.text(), "only");
     }
 }
