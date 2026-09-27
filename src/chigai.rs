@@ -17,7 +17,12 @@
 //!
 //! **Lift trigger, stated so it is not forgotten:** the moment a second
 //! genuine consumer of *text-sequence* diff appears, this module becomes the
-//! `chigai` crate. Until then, extracting it would be over-abstraction —
+//! `chigai` crate. **That consumer appeared on 2026-09-27**: arnes renders
+//! its Edit/Write tool results through [`unified`]. arnes already depends on
+//! egaku, so it consumes this module in place for now; the lift to a
+//! standalone crate is owed (a new pleme-io repo goes through the GitHub
+//! IaC) and becomes due the moment a consumer that does not want egaku
+//! appears. Until then, extracting it would be over-abstraction —
 //! *"the test is whether the third use demonstrably reuses the same shape."*
 //!
 //! # The name
@@ -339,6 +344,57 @@ fn backtrack<T: PartialEq>(
     out
 }
 
+/// Render the line difference between `old` and `new` as unified-diff hunks
+/// (`@@ -a,b +c,d @@`, then ` `/`-`/`+` lines) with `context` unchanged
+/// lines around each change — the text [`DiffView`](crate::DiffView) parses,
+/// so a produced diff can be read back by the fleet's own viewer. Empty when
+/// the texts are line-identical.
+#[must_use]
+pub fn unified(old: &str, new: &str, context: usize) -> String {
+    use std::fmt::Write as _;
+    let (d, o, n) = diff_lines(old, new);
+    let changes = d.changes();
+    // Indices of changed ops; hunks are runs of changes padded by context.
+    let changed: Vec<usize> = changes.iter().enumerate().filter(|(_, c)| !c.is_equal()).map(|(i, _)| i).collect();
+    let mut out = String::new();
+    let mut i = 0;
+    while i < changed.len() {
+        let start = changed[i].saturating_sub(context);
+        let mut end = changed[i];
+        while i < changed.len() && changed[i] <= end + 2 * context + 1 {
+            end = changed[i];
+            i += 1;
+        }
+        let end = (end + context + 1).min(changes.len());
+        let ops = &changes[start..end];
+        // Hunk header: 1-based starting lines and counts on each side.
+        let first_old = ops.iter().find_map(|c| match c {
+            Change::Equal { old_index, .. } | Change::Delete { old_index } => Some(*old_index),
+            Change::Insert { .. } => None,
+        });
+        let first_new = ops.iter().find_map(|c| match c {
+            Change::Equal { new_index, .. } | Change::Insert { new_index } => Some(*new_index),
+            Change::Delete { .. } => None,
+        });
+        let old_count = ops.iter().filter(|c| !matches!(c, Change::Insert { .. })).count();
+        let new_count = ops.iter().filter(|c| !matches!(c, Change::Delete { .. })).count();
+        let _ = writeln!(
+            out,
+            "@@ -{},{old_count} +{},{new_count} @@",
+            first_old.map_or(0, |x| x + 1),
+            first_new.map_or(0, |x| x + 1)
+        );
+        for c in ops {
+            let _ = match c {
+                Change::Equal { old_index, .. } => writeln!(out, " {}", o[*old_index]),
+                Change::Delete { old_index } => writeln!(out, "-{}", o[*old_index]),
+                Change::Insert { new_index } => writeln!(out, "+{}", n[*new_index]),
+            };
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -513,5 +569,30 @@ mod tests {
         assert!(diff(&e, &e, DiffOptions::default()).is_empty_change());
         assert_eq!(diff(&e, &[1u8, 2], DiffOptions::default()).stats(), (2, 0));
         assert_eq!(diff(&[1u8, 2], &e, DiffOptions::default()).stats(), (0, 2));
+    }
+
+    #[test]
+    fn unified_renders_one_hunk_with_context() {
+        let old = "a\nb\nc\nd\ne\nf\ng\n";
+        let new = "a\nb\nc\nD\ne\nf\ng\n";
+        let u = unified(old, new, 1);
+        assert_eq!(u, "@@ -3,3 +3,3 @@\n c\n-d\n+D\n e\n");
+    }
+
+    #[test]
+    fn unified_is_empty_for_identical_text_and_splits_far_changes() {
+        assert_eq!(unified("x\ny\n", "x\ny\n", 3), "");
+        let old: String = (0..30).map(|i| format!("l{i}\n")).collect();
+        let new = old.replace("l2\n", "L2\n").replace("l27\n", "L27\n");
+        let u = unified(&old, &new, 2);
+        assert_eq!(u.matches("@@ -").count(), 2, "{u}");
+    }
+
+    #[test]
+    fn unified_output_round_trips_through_diffview() {
+        let u = unified("one\ntwo\n", "one\n2\nthree\n", 3);
+        let text = format!("--- a/f\n+++ b/f\n{u}");
+        let view = crate::DiffView::parse(&text);
+        assert!(!view.files().is_empty(), "the fleet's own viewer reads what chigai writes:\n{text}");
     }
 }
