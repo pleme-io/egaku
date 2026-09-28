@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "53362ca75678dc75d55686efcc90249853633def1d69edb6dabb9327b728be11",
+  "cargo_lock_sha256": "2617281f4b7b478b48759fe1b5672853f331cc97e4f8e69d18b272000564fe1b",
   "manifest_sha256": {
-    "Cargo.toml": "89911d0c01ec2b24d7a7b38b588c07c5ffdadc86773826e1c047651cc5ba96bc"
+    "Cargo.toml": "1fcf29960b1f68138135c1c3c2d9f56db8656bfe4f65afffa7d7018b1444979b"
   },
   "target_resolves": {
     "base": {
@@ -113,6 +113,16 @@
           {
             "name": "tracing",
             "package_key": "tracing-0.1.44",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "unicode_linebreak",
+            "package_key": "unicode-linebreak-0.1.5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -885,6 +895,11 @@
         "build_dependencies": [],
         "features": []
       },
+      "unicode-linebreak-0.1.5": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
+      },
       "unicode-segmentation-1.13.3": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -1648,6 +1663,9 @@
       "edition": "2018"
     },
     "unicode-ident-1.0.26": {
+      "edition": "2021"
+    },
+    "unicode-linebreak-0.1.5": {
       "edition": "2021"
     },
     "unicode-segmentation-1.13.3": {

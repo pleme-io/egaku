@@ -26,6 +26,20 @@
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
+/// How a logical line is broken into visual rows.
+///
+/// `Grapheme` fills every column and splits wherever the row runs out — the
+/// right shape for logs and code, where a column is a column. `Word` breaks
+/// only at UAX #14 line-break opportunities (spaces, after hyphens, between
+/// CJK ideographs), so prose never reads `ba` / `sic`; a single word wider
+/// than the row still hard-breaks at a grapheme rather than overflowing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Wrap {
+    #[default]
+    Grapheme,
+    Word,
+}
+
 /// A run of text sharing one caller-defined style index.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Span {
@@ -107,6 +121,9 @@ pub struct TextView {
     width: usize,
     height: usize,
     offset: usize,
+    wrap: Wrap,
+    /// Columns every continuation row is indented by (a hanging indent).
+    hang: usize,
 }
 
 impl TextView {
@@ -151,6 +168,30 @@ impl TextView {
     pub fn set_width(&mut self, width: usize) {
         if self.width != width {
             self.width = width;
+            self.rewrap();
+        }
+    }
+
+    /// Choose the wrap mode. Rewraps.
+    pub fn set_wrap(&mut self, wrap: Wrap) {
+        if self.wrap != wrap {
+            self.wrap = wrap;
+            self.rewrap();
+        }
+    }
+
+    #[must_use]
+    pub fn wrap(&self) -> Wrap {
+        self.wrap
+    }
+
+    /// Indent continuation rows by `hang` columns — list items and quoted
+    /// blocks line up under their text instead of under the marker. The
+    /// indent is emitted as a leading space span with the row's first style.
+    /// Clamped so at least one column of content remains. Rewraps.
+    pub fn set_hang(&mut self, hang: usize) {
+        if self.hang != hang {
+            self.hang = hang;
             self.rewrap();
         }
     }
@@ -287,7 +328,10 @@ impl TextView {
     fn rewrap(&mut self) {
         self.wrapped = Vec::new();
         for (idx, spans) in self.lines.iter().enumerate() {
-            wrap_spans(spans, self.width, idx, &mut self.wrapped);
+            match self.wrap {
+                Wrap::Grapheme if self.hang == 0 => wrap_spans(spans, self.width, idx, &mut self.wrapped),
+                mode => wrap_breaking(spans, self.width, self.hang, mode, idx, &mut self.wrapped),
+            }
         }
         self.clamp();
     }
@@ -347,9 +391,185 @@ fn wrap_spans(spans: &[Span], width: usize, source_line: usize, out: &mut Vec<Wr
     }
 }
 
+/// One grapheme of a line, flattened out of its span.
+struct Cell<'a> {
+    text: &'a str,
+    style: u8,
+    width: usize,
+    /// A row may end BEFORE this cell (a UAX #14 opportunity).
+    break_before: bool,
+    whitespace: bool,
+}
+
+/// Word- or grapheme-wrap with an optional hanging indent.
+///
+/// The line is flattened to grapheme cells so a break can land anywhere a
+/// span boundary is, and styles survive the split. Break opportunities come
+/// from `unicode-linebreak` over the whole line's text, so they do not
+/// depend on where the caller happened to cut spans.
+fn wrap_breaking(spans: &[Span], width: usize, hang: usize, mode: Wrap, source_line: usize, out: &mut Vec<WrappedLine>) {
+    if width == 0 {
+        out.push(WrappedLine { spans: spans.to_vec(), source_line });
+        return;
+    }
+    let hang = hang.min(width.saturating_sub(1));
+    let text: String = spans.iter().map(Span::text).collect();
+    let opportunities: std::collections::HashSet<usize> = match mode {
+        Wrap::Word => unicode_linebreak::linebreaks(&text).map(|(i, _)| i).collect(),
+        Wrap::Grapheme => std::collections::HashSet::new(),
+    };
+    let mut cells = Vec::new();
+    let mut offset = 0usize;
+    for span in spans {
+        for g in span.text.graphemes(true) {
+            cells.push(Cell {
+                text: g,
+                style: span.style,
+                width: UnicodeWidthStr::width(g).max(1),
+                break_before: mode == Wrap::Grapheme || opportunities.contains(&offset),
+                whitespace: g.chars().all(char::is_whitespace),
+            });
+            offset += g.len();
+        }
+    }
+
+    let emit = |cells: &[Cell], indent: usize, out: &mut Vec<WrappedLine>| {
+        let mut row: Vec<Span> = Vec::new();
+        for c in cells {
+            match row.last_mut() {
+                Some(last) if last.style == c.style => last.text.push_str(c.text),
+                _ => row.push(Span::new(c.text, c.style)),
+            }
+        }
+        if indent > 0 {
+            row.insert(0, Span::new(" ".repeat(indent), cells.first().map_or(0, |c| c.style)));
+        }
+        out.push(WrappedLine { spans: row, source_line });
+    };
+
+    let start_len = out.len();
+    let mut start = 0usize;
+    while start < cells.len() {
+        let first = out.len() == start_len;
+        let indent = if first { 0 } else { hang };
+        let avail = width - indent;
+        let mut used = 0usize;
+        let mut end = start;
+        let mut last_break: Option<usize> = None;
+        while end < cells.len() {
+            if end > start && cells[end].break_before {
+                last_break = Some(end);
+            }
+            if used + cells[end].width > avail && end > start {
+                break;
+            }
+            used += cells[end].width;
+            end += 1;
+        }
+        if end < cells.len() {
+            // Overflow. Prefer the last opportunity; a whitespace cell at the
+            // overflow point is itself a fine place to stop.
+            if cells[end].whitespace || cells[end].break_before {
+                // break exactly here
+            } else if let Some(b) = last_break {
+                end = b;
+            }
+        }
+        let mut row_end = end;
+        while mode == Wrap::Word && row_end > start && end < cells.len() && cells[row_end - 1].whitespace {
+            row_end -= 1;
+        }
+        emit(&cells[start..row_end], indent, out);
+        start = end;
+        if end < cells.len() {
+            while start < cells.len() && cells[start].whitespace && mode == Wrap::Word {
+                start += 1;
+            }
+        }
+    }
+    if out.len() == start_len {
+        out.push(WrappedLine { spans: Vec::new(), source_line });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn word(text: &str, width: usize) -> Vec<String> {
+        let mut v = TextView::from_text(text, width, 50);
+        v.set_wrap(Wrap::Word);
+        v.wrapped().iter().map(WrappedLine::text).collect()
+    }
+
+    #[test]
+    fn grapheme_is_the_default_and_unchanged() {
+        let v = TextView::from_text("basic arithmetic", 7, 10);
+        assert_eq!(v.wrap(), Wrap::Grapheme);
+        assert_eq!(v.wrapped()[0].text(), "basic a");
+    }
+
+    #[test]
+    fn word_mode_never_splits_a_word() {
+        assert_eq!(word("from basic arithmetic, algebra", 12), vec!["from basic", "arithmetic,", "algebra"]);
+    }
+
+    #[test]
+    fn word_mode_drops_the_whitespace_it_broke_on() {
+        let rows = word("aaa    bbb", 5);
+        assert_eq!(rows, vec!["aaa", "bbb"]);
+    }
+
+    #[test]
+    fn a_word_wider_than_the_row_hard_breaks() {
+        assert_eq!(word("abcdefghij xy", 4), vec!["abcd", "efgh", "ij", "xy"]);
+    }
+
+    #[test]
+    fn breaks_after_a_hyphen() {
+        assert_eq!(word("step-by-step", 9), vec!["step-by-", "step"]);
+    }
+
+    #[test]
+    fn cjk_breaks_between_ideographs_measured_in_columns() {
+        let rows = word("日本語の文章", 6);
+        assert_eq!(rows, vec!["日本語", "の文章"]);
+        let mut v = TextView::from_text("日本語の文章", 6, 5);
+        v.set_wrap(Wrap::Word);
+        assert!(v.wrapped().iter().all(|w| w.width() <= 6));
+    }
+
+    #[test]
+    fn styles_survive_a_word_break() {
+        let mut v = TextView::new();
+        v.set_width(8);
+        v.set_wrap(Wrap::Word);
+        v.set_lines(vec![vec![Span::new("hello ", 1), Span::new("big world", 2)]]);
+        let rows = v.wrapped();
+        assert_eq!(rows[0].text(), "hello");
+        assert_eq!(rows[0].spans()[0].style(), 1);
+        assert_eq!(rows[1].text(), "big");
+        assert_eq!(rows[1].spans()[0].style(), 2);
+        assert_eq!(rows[2].text(), "world");
+    }
+
+    #[test]
+    fn hanging_indent_lines_continuations_up() {
+        let mut v = TextView::from_text("- one two three four", 10, 10);
+        v.set_wrap(Wrap::Word);
+        v.set_hang(2);
+        let rows: Vec<String> = v.wrapped().iter().map(WrappedLine::text).collect();
+        assert_eq!(rows, vec!["- one two", "  three", "  four"]);
+        assert!(v.wrapped().iter().all(|w| w.width() <= 10));
+    }
+
+    #[test]
+    fn word_mode_keeps_blank_lines_and_source_mapping() {
+        let mut v = TextView::from_text("aa bb\n\ncc", 3, 10);
+        v.set_wrap(Wrap::Word);
+        let srcs: Vec<usize> = v.wrapped().iter().map(WrappedLine::source_line).collect();
+        assert_eq!(srcs, vec![0, 0, 1, 2]);
+    }
 
     #[test]
     fn wraps_at_the_viewport_width() {
