@@ -28,6 +28,7 @@ Reusable UI widget library for all pleme-io graphical applications. Sits between
 | `modal.rs` | `Modal` | Centered overlay with visibility toggle |
 | `focus.rs` | `FocusManager` | Tab-order focus traversal by widget ID |
 | `keymap.rs` | `KeyMap` | Key combo → action string lookup |
+| `nav.rs` | `Navigator`, `NavKeymap`, `NavResolver`, `NavAction`, `NavKey` | One vim navigation grammar for every list/menu/pager: j/k, counts, gg/G, Ctrl-d/u/f/b, H/M/L, `/` with n/N (jump or filter), open/back/dismiss/close, yank; chords are data (menu + filter default sets), footers render from the bindings |
 | `layout.rs` | `Rect` | Layout primitives (contains, inset, split) |
 | `theme.rs` | `Theme` | Colors, spacing, font config (serde, Nord defaults) |
 

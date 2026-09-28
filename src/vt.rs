@@ -141,6 +141,34 @@ pub fn notify_all(title: &str, body: &str) -> Vec<u8> {
     out
 }
 
+/// OSC 52: put `text` on the system clipboard through the terminal.
+/// `ESC ] 52 ; c ; <base64> BEL`. Works over ssh and inside `tmux` (with
+/// `set-clipboard on`), which is why a TUI's yank uses it rather than a
+/// platform clipboard API.
+#[must_use]
+pub fn osc52_copy(text: &str) -> Vec<u8> {
+    osc(52, &["c", &base64(text.as_bytes())], OscTerminator::Bel)
+}
+
+/// Standard base64 with padding (RFC 4648 §4) — the one encoding OSC 52
+/// needs, kept here so egaku stays dependency-light.
+fn base64(bytes: &[u8]) -> String {
+    const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
+        for i in 0..4 {
+            if i <= chunk.len() {
+                out.push(char::from(T[((n >> (18 - 6 * i)) & 63) as usize]));
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -189,6 +217,16 @@ mod tests {
         assert_eq!(osc133(Osc133Mark::CommandEnd(None)), b"\x1b]133;D\x1b\\");
         assert_eq!(osc133(Osc133Mark::CommandEnd(Some(0))), b"\x1b]133;D;0\x1b\\");
         assert_eq!(osc133(Osc133Mark::CommandEnd(Some(130))), b"\x1b]133;D;130\x1b\\");
+    }
+
+    #[test]
+    fn osc52_copies_base64() {
+        assert_eq!(base64(b""), "");
+        assert_eq!(base64(b"f"), "Zg==");
+        assert_eq!(base64(b"fo"), "Zm8=");
+        assert_eq!(base64(b"foo"), "Zm9v");
+        assert_eq!(base64(b"foobar"), "Zm9vYmFy");
+        assert_eq!(osc52_copy("hi"), b"\x1b]52;c;aGk=\x07");
     }
 
     #[test]

@@ -14,6 +14,9 @@
 //! - `Modal`: overlay dialog visibility state
 //! - `FuzzyPicker`: generic modal fuzzy-picker (typed FSM) — session/tab
 //!   switcher, command palette, fuzzy chooser; render-backend-agnostic
+//! - `Navigator`: one vim navigation grammar (j/k, counts, gg/G, Ctrl-d/u/f/b,
+//!   H/M/L, / with n/N, open/back/dismiss/close, yank) for any list, menu or
+//!   pager, over a declarative `NavKeymap`
 //! - `FocusManager`: tab-order focus traversal across widgets
 //! - `KeyMap`: configurable keybinding system (generic over action type)
 //! - `Rect` / `Padding`: layout geometry primitives
@@ -41,6 +44,7 @@ pub mod keymap;
 pub mod layout;
 pub mod list;
 pub mod modal;
+pub mod nav;
 pub mod picker;
 pub mod scroll;
 pub mod secret;
@@ -61,6 +65,9 @@ pub use keymap::{KeyCombo, KeyMap};
 pub use layout::{Padding, Rect};
 pub use list::ListView;
 pub use modal::Modal;
+pub use nav::{
+    Feed, NavAction, NavKey, NavKeymap, NavKind, NavOutcome, NavProfile, NavResolver, Navigator, SearchStyle,
+};
 pub use picker::{
     FuzzyPicker, PickerEffect, PickerEvent, PickerItem, PickerState, PickerStep, PickerView,
     QueryGuard,
