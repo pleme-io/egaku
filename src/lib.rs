@@ -66,7 +66,7 @@ pub use layout::{Padding, Rect};
 pub use list::ListView;
 pub use modal::Modal;
 pub use nav::{
-    Feed, NavAction, NavKey, NavKeymap, NavKind, NavOutcome, NavProfile, NavResolver, Navigator, SearchStyle,
+    FILTER_BINDINGS, Feed, MENU_BINDINGS, NavAction, NavKey, NavKeymap, NavKind, NavOutcome, NavProfile, NavResolver, Navigator, SearchStyle,
 };
 pub use picker::{
     FuzzyPicker, PickerEffect, PickerEvent, PickerItem, PickerState, PickerStep, PickerView,
