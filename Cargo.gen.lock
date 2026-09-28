@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "2617281f4b7b478b48759fe1b5672853f331cc97e4f8e69d18b272000564fe1b",
+  "cargo_lock_sha256": "d2464101a04ebea6e72f8c41a7182fd489b4ffadc52ae8a7d9c032b0848ec4e8",
   "manifest_sha256": {
-    "Cargo.toml": "1fcf29960b1f68138135c1c3c2d9f56db8656bfe4f65afffa7d7018b1444979b"
+    "Cargo.toml": "a6ac42ae6375194b1119bc6ff6d223d2ff7d988dcd221caf4f0b56610a2e9988"
   },
   "target_resolves": {
     "base": {
@@ -56,7 +56,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "egaku-0.1.19": {
+      "egaku-0.1.20": {
         "runtime_dependencies": [
           {
             "name": "awase",
@@ -1562,7 +1562,7 @@
     "cfg-if-1.0.5": {
       "edition": "2018"
     },
-    "egaku-0.1.19": {
+    "egaku-0.1.20": {
       "edition": "2024",
       "lib_target": {
         "name": "egaku",
